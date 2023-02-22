@@ -2,6 +2,7 @@ const gltf = require('gltf-pipeline');
 const fs = require('node:fs');
 const path = require('node:path');
 const gm = require('gm');
+const gltfpack = require('gltfpack');
 
 async function parseModel(inputModelPath) {
     let results;
@@ -114,6 +115,29 @@ function extractMaterials(model) {
     return { meshMap, textures: friendlyTextures, materials };
 }
 
+async function simplifyModel(modelBuffer, modelOutPath, lodRatio = null) {
+    const inputPath = 'argument://input-model.glb';
+    const interface = {
+        read: (filePath) => {
+            if (filePath === inputPath) {
+                return modelBuffer;
+            } else {
+                fs.readFileSync(filePath);
+            }
+        },
+        write: fs.writeFileSync,
+    };
+
+    const args = ['-i', inputPath, '-o', modelOutPath, '-noq', '-kn'];
+
+    if (lodRatio !== null) {
+        args.push('-si', `${lodRatio}`);
+    }
+
+    const log = await gltfpack.pack(args, interface);
+    console.log(log);
+}
+
 async function splitModel(inputModelPath, outputFolder, targetTextureLength) {
     fs.mkdirSync(outputFolder, { recursive: true });
     const results = await parseModel(inputModelPath);
@@ -131,10 +155,21 @@ async function splitModel(inputModelPath, outputFolder, targetTextureLength) {
         modelName = modelName.substring(0, modelName.length - extLen);
     }
 
-    fs.writeFileSync(path.resolve(outputFolder, `${modelName}.metadata.json`), JSON.stringify(metadata));
-
     const glbResults = await gltf.gltfToGlb(model);
-    fs.writeFileSync(path.resolve(outputFolder, `${modelName}.glb`), glbResults.glb);
+    const glbModel = glbResults.glb;
+    const lods = [null, 0.9, 0.75, 0.5, 0.25, 0.125];
+    metadata.lods = [];
+
+    for (let i = 0; i < lods.length; i++) {
+        const outName = `${modelName}.LOD${i}.glb`;
+        const outPath = path.resolve(outputFolder, outName);
+        await simplifyModel(glbModel, outPath, lods[i]);
+        metadata.lods.push([outName, fs.statSync(outPath).size]);
+    }
+
+    fs.writeFileSync(path.resolve(outputFolder, `${modelName}.metadata.json`), JSON.stringify(metadata));
 }
+
+module.exports = splitModel;
 
 splitModel('model.glb', 'output', ['20%']);
