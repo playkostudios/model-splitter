@@ -1,0 +1,6 @@
+node_modules/
+output/
+model.glb
+*.sublime-project
+*.sublime-workspace
+package-lock.json

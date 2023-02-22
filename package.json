@@ -1,0 +1,25 @@
+{
+  "name": "model-splitter",
+  "version": "1.0.0",
+  "description": "Splits a model into multiple models with different LOD levels and downscales textures",
+  "main": "index.js",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/playkostudios/model-splitter.git"
+  },
+  "contributors": [
+    "Rafael Fernandes <rafael@playko.com>",
+    "Playko (https://www.playko.com/)"
+  ],
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/playkostudios/model-splitter/issues"
+  },
+  "homepage": "https://github.com/playkostudios/model-splitter#readme",
+  "devDependencies": {
+    "gltf-pipeline": "^4.0.2",
+    "gltfpack": "^0.18.0",
+    "gm": "^1.25.0"
+  }
+}
