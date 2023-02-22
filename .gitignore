@@ -1,5 +1,9 @@
 node_modules/
 output/
+example-project/deploy/
+example-project/cache/
+example-project/static/*
+!example-project/static/.keepme
 model.glb
 *.sublime-project
 *.sublime-workspace
