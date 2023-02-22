@@ -59,10 +59,11 @@ function traverseNode(meshToNodePath, nodes, nodePath, node) {
     nodePath.pop();
 }
 
-function extractMaterials(model) {
+function extractMaterials(results, modelName) {
     // map nodes to meshes; WLE can't reference meshes directly when loaded via
     // WL.scene.append, so we have to map a scene path to a mesh object
     const meshToNodePath = new Map();
+    const model = results.gltf;
     const nodes = model.nodes;
     for (const scene of model.scenes) {
         for (const rootNodeID of scene.nodes) {
@@ -107,10 +108,17 @@ function extractMaterials(model) {
 
     // convert textures to friendlier format
     const friendlyTextures = [];
+    const newResources = {};
     for (let i = 0; i < textureCount; i++) {
         const texture = textures[i];
-        friendlyTextures.push(images[texture.source].uri);
+        const oldURI = images[texture.source].uri;
+        const ext = path.extname(oldURI);
+        const newURI = `${modelName}.TEX${i}${ext}`;
+        friendlyTextures.push(newURI);
+        newResources[newURI] = results.separateResources[oldURI];
     }
+
+    results.separateResources = newResources;
 
     return { meshMap, textures: friendlyTextures, materials };
 }
@@ -130,34 +138,43 @@ async function simplifyModel(modelBuffer, modelOutPath, lodRatio = null) {
 
     const args = ['-i', inputPath, '-o', modelOutPath, '-noq', '-kn'];
 
-    if (lodRatio !== null) {
+    if (lodRatio < 1) {
+        if (lodRatio <= 0) {
+            throw new Error('LOD levels must be greater than 0');
+        }
+
         args.push('-si', `${lodRatio}`);
+    } else if (lodRatio > 1) {
+        console.warn('Ignored LOD ratio greater than 1; treating as 1 (no simplification)');
     }
 
     const log = await gltfpack.pack(args, interface);
-    console.log(log);
+    if (log !== '') {
+        console.log(log);
+    }
 }
 
-async function splitModel(inputModelPath, outputFolder, targetTextureLength) {
+async function splitModel(inputModelPath, outputFolder, resizeOpts = null, lods = [1]) {
     fs.mkdirSync(outputFolder, { recursive: true });
     const results = await parseModel(inputModelPath);
-    const textureList = separateTextures(results.separateResources, outputFolder);
 
-    for (const path of textureList) {
-        downscaleTexture(path, targetTextureLength);
-    }
-
-    const model = results.gltf;
-    const metadata = extractMaterials(model);
     let modelName = path.basename(inputModelPath);
     const extLen = path.extname(modelName).length;
     if (extLen > 0) {
         modelName = modelName.substring(0, modelName.length - extLen);
     }
 
-    const glbResults = await gltf.gltfToGlb(model);
+    const metadata = extractMaterials(results, modelName);
+
+    const textureList = separateTextures(results.separateResources, outputFolder);
+    if (resizeOpts !== null) {
+        for (const path of textureList) {
+            downscaleTexture(path, resizeOpts);
+        }
+    }
+
+    const glbResults = await gltf.gltfToGlb(results.gltf);
     const glbModel = glbResults.glb;
-    const lods = [null, 0.9, 0.75, 0.5, 0.25, 0.125];
     metadata.lods = [];
 
     for (let i = 0; i < lods.length; i++) {
@@ -172,4 +189,4 @@ async function splitModel(inputModelPath, outputFolder, targetTextureLength) {
 
 module.exports = splitModel;
 
-splitModel('model.glb', 'output', ['20%']);
+splitModel('model.glb', 'output', ['25%'], [1, 0.9, 0.75, 0.5, 0.25, 0.125]);
