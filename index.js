@@ -180,8 +180,14 @@ async function splitModel(inputModelPath, outputFolder, resizeOpts = null, lods 
     for (let i = 0; i < lods.length; i++) {
         const outName = `${modelName}.LOD${i}.glb`;
         const outPath = path.resolve(outputFolder, outName);
-        await simplifyModel(glbModel, outPath, lods[i]);
-        metadata.lods.push([outName, fs.statSync(outPath).size]);
+        const lodRatio = lods[i];
+        await simplifyModel(glbModel, outPath, lodRatio);
+
+        metadata.lods.push({
+            file: outName,
+            lodRatio,
+            bytes: fs.statSync(outPath).size
+        });
     }
 
     fs.writeFileSync(path.resolve(outputFolder, `${modelName}.metadata.json`), JSON.stringify(metadata));
@@ -189,4 +195,85 @@ async function splitModel(inputModelPath, outputFolder, resizeOpts = null, lods 
 
 module.exports = splitModel;
 
-splitModel('model.glb', 'output', ['25%'], [1, 0.9, 0.75, 0.5, 0.25, 0.125]);
+function printHelp(execPath) {
+    const execName = path.basename(execPath);
+    console.log(`
+Usage:
+${execName} <input file> <output folder> [--texture-size <percentage or target side length>] <lod 1 simplification ratio> <lod 2 simplification ratio> ...
+
+Example usage:
+${execName} model.glb output 0.9 0.75 0.5 0.25 0.125 --texture-size 25%
+
+Note that there is always a LOD0 with a simplification ratio of 1 (no simplification). This behaviour can be skipped by using ${execName} as a library instead of as a CLI tool.`
+    );
+}
+
+if (typeof require !== 'undefined' && require.main === module) {
+    // running from CLI. parse arguments
+    let inputPath = null;
+    let outputFolder = null;
+    let resizeOpts = null;
+    const lods = [1];
+
+    try {
+        const cliArgs = process.argv.slice(2);
+        let expectResizeOpt = false;
+
+        for (const arg of cliArgs) {
+            if (inputPath === null) {
+                inputPath = arg;
+            } else if (outputFolder === null) {
+                outputFolder = arg;
+            } else if (expectResizeOpt) {
+                expectResizeOpt = false;
+                if (arg.endsWith('%')) {
+                    const percent = Number(arg.substring(0, arg.length - 1));
+                    if (isNaN(percent) || percent <= 0) {
+                        throw new Error('Invalid percentage. Must be a number > 0');
+                    }
+
+                    resizeOpts = [arg];
+                } else {
+                    const sideLength = Number(arg);
+                    if (isNaN(sideLength) || sideLength <= 0) {
+                        throw new Error('Invalid side length. Must be a number > 0');
+                    }
+
+                    resizeOpts = [`${sideLength}x${sideLength}!`];
+                }
+            } else if (arg === '--texture-size') {
+                if (resizeOpts !== null) {
+                    throw new Error('--texture-size can only be specified once');
+                }
+
+                expectResizeOpt = true;
+            } else {
+                const lodRatio = Number(arg);
+                if (isNaN(lodRatio) || lodRatio <= 0 || lodRatio > 1) {
+                    throw new Error('Invalid LOD simplification ratio. Must be a number > 0 and <= 1');
+                }
+
+                lods.push(lodRatio);
+            }
+        }
+
+        if (expectResizeOpt) {
+            throw new Error('Expected texture size');
+        } else if (inputPath === null) {
+            throw new Error('Input path not specified');
+        } else if (outputFolder === null) {
+            throw new Error('Output folder not specified');
+        }
+    } catch (e) {
+        console.error(e);
+        printHelp(process.argv[1]);
+        process.exit(1);
+    }
+
+    try {
+        splitModel(inputPath, outputFolder, resizeOpts, lods);
+    } catch(e) {
+        console.error('Error occurred while splitting model:', e);
+        process.exit(2);
+    }
+}
