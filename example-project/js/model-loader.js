@@ -74,6 +74,19 @@ WL.registerComponent('model-loader', {
                 const gltfMat = rawMaterial.pbrMetallicRoughness;
                 material = this.pbrTemplateMaterial.clone();
 
+                if ('normalTexture' in rawMaterial && 'index' in rawMaterial.normalTexture) {
+                    const textureIdx = rawMaterial.normalTexture.index;
+                    const texture = textures[textureIdx];
+                    console.log('normal', meta.textures[textureIdx], texture);
+                    if (texture === undefined) {
+                        console.warn(`Ignored "normalTexture"; missing texture index "${textureIdx}"`);
+                    } else if (texture === null) {
+                        console.warn(`Ignored "normalTexture"; texture index "${textureIdx}" was not loaded`);
+                    } else {
+                        material.normalTexture = texture;
+                    }
+                }
+
                 if ('metallicFactor' in gltfMat) {
                     material.metallicFactor = gltfMat.metallicFactor;
                 }
@@ -87,6 +100,8 @@ WL.registerComponent('model-loader', {
                     const texture = textures[textureIdx];
                     if (texture === undefined) {
                         console.warn(`Ignored "metallicRoughnessTexture"; missing texture index "${textureIdx}"`);
+                    } else if (texture === null) {
+                        console.warn(`Ignored "metallicRoughnessTexture"; texture index "${textureIdx}" was not loaded`);
                     } else {
                         material.roughnessMetallicTexture = texture;
                     }
@@ -97,6 +112,8 @@ WL.registerComponent('model-loader', {
                     const texture = textures[textureIdx];
                     if (texture === undefined) {
                         console.warn(`Ignored "baseColorTexture"; missing texture index "${textureIdx}"`);
+                    } else if (texture === null) {
+                        console.warn(`Ignored "baseColorTexture"; texture index "${textureIdx}" was not loaded`);
                     } else {
                         material.albedoTexture = texture;
                     }
