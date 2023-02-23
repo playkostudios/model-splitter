@@ -136,7 +136,7 @@ async function simplifyModel(modelBuffer, modelOutPath, lodRatio = null) {
         write: fs.writeFileSync,
     };
 
-    const args = ['-i', inputPath, '-o', modelOutPath, '-noq', '-kn'];
+    const args = ['-i', inputPath, '-o', modelOutPath, '-noq', '-kn', '-km'];
 
     if (lodRatio < 1) {
         if (lodRatio <= 0) {
