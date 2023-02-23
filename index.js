@@ -71,7 +71,8 @@ function extractMaterials(results, modelName) {
         }
     }
 
-    // remove material from mesh and map mesh to node path
+    // remove material from mesh and map mesh to node path, replace material
+    // with bogus material
     const meshMap = [];
     const meshes = model.meshes;
     const meshCount = meshes.length;
@@ -80,7 +81,7 @@ function extractMaterials(results, modelName) {
         for (const primitive of meshes[i].primitives) {
             if (primitive.material !== undefined) {
                 materialID = primitive.material;
-                delete primitive.material;
+                primitive.material = 0;
             }
         }
 
@@ -105,6 +106,21 @@ function extractMaterials(results, modelName) {
     delete model.materials;
     const images = model.images;
     delete model.images;
+
+    // replace materials list with bogus material
+    model.materials = [
+        {
+            "pbrMetallicRoughness": {
+                "metallicFactor": 0.5,
+                "roughnessFactor": 0.5,
+                "baseColorFactor": [ 1, 1, 1, 1 ]
+            },
+            "name": "bogus-material",
+            "emissiveFactor": [ 0, 0, 0 ],
+            "alphaMode": "OPAQUE",
+            "doubleSided": false
+        }
+    ];
 
     // convert textures to friendlier format
     const friendlyTextures = [];
