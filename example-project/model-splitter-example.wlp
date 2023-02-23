@@ -391,21 +391,9 @@
         }
     },
     "shaders": {
-        "1": {
-            "link": {
-                "name": "DistanceFieldVector Textured.frag",
-                "file": "default"
-            }
-        },
         "2": {
             "link": {
                 "name": "Flat.frag",
-                "file": "default"
-            }
-        },
-        "3": {
-            "link": {
-                "name": "Flat Textured.frag",
                 "file": "default"
             }
         },
@@ -421,33 +409,15 @@
                 "file": "default"
             }
         },
-        "6": {
-            "link": {
-                "name": "Phong Textured.frag",
-                "file": "default"
-            }
-        },
         "28": {
             "link": {
                 "name": "Dynamic.vert",
                 "file": "default"
             }
         },
-        "29": {
-            "link": {
-                "name": "Particle Textured.frag",
-                "file": "default"
-            }
-        },
         "30": {
             "link": {
                 "name": "Skinning.vert",
-                "file": "default"
-            }
-        },
-        "31": {
-            "link": {
-                "name": "Static.frag",
                 "file": "default"
             }
         },
