@@ -60,7 +60,13 @@ WL.registerComponent('model-loader', {
             try {
                 texture = new WL.Texture(await loadImage(textureURL, 10000));
             } catch (err) {
+                console.error(err);
                 console.warn(`Failed to download or initialize texture "${textureURL}"`);
+            }
+
+            if (texture !== null && !texture.valid) {
+                console.warn(`Invalid texture "${textureURL}"; maybe the atlas is full?`);
+                texture = null;
             }
 
             textures.push(texture);
