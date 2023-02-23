@@ -23,7 +23,9 @@ function loadImage(/** @type {string} */ url, /** @type {number} */ timeoutMS) {
 WL.registerComponent('model-loader', {
     metadataURL: {type: WL.Type.String},
     lod: {type: WL.Type.Int, default: 0},
-    pbrTemplateMaterial: {type: WL.Type.Material}
+    avoidPBR: {type: WL.Type.Bool, default: false},
+    pbrTemplateMaterial: {type: WL.Type.Material},
+    phongTemplateMaterial: {type: WL.Type.Material}
 }, {
     init: async function() {
         // fetch metadata
@@ -72,7 +74,12 @@ WL.registerComponent('model-loader', {
 
             if ('pbrMetallicRoughness' in rawMaterial) {
                 const gltfMat = rawMaterial.pbrMetallicRoughness;
-                material = this.pbrTemplateMaterial.clone();
+
+                if (this.avoidPBR) {
+                    material = this.phongTemplateMaterial.clone();
+                } else {
+                    material = this.pbrTemplateMaterial.clone();
+                }
 
                 if ('normalTexture' in rawMaterial && 'index' in rawMaterial.normalTexture) {
                     const textureIdx = rawMaterial.normalTexture.index;
@@ -86,23 +93,25 @@ WL.registerComponent('model-loader', {
                     }
                 }
 
-                if ('metallicFactor' in gltfMat) {
-                    material.metallicFactor = gltfMat.metallicFactor;
-                }
+                if (!this.avoidPBR) {
+                    if ('metallicFactor' in gltfMat) {
+                        material.metallicFactor = gltfMat.metallicFactor;
+                    }
 
-                if ('roughnessFactor' in gltfMat) {
-                    material.roughnessFactor = gltfMat.roughnessFactor;
-                }
+                    if ('roughnessFactor' in gltfMat) {
+                        material.roughnessFactor = gltfMat.roughnessFactor;
+                    }
 
-                if ('metallicRoughnessTexture' in gltfMat && 'index' in gltfMat.metallicRoughnessTexture) {
-                    const textureIdx = gltfMat.metallicRoughnessTexture.index;
-                    const texture = textures[textureIdx];
-                    if (texture === undefined) {
-                        console.warn(`Ignored "metallicRoughnessTexture"; missing texture index "${textureIdx}"`);
-                    } else if (texture === null) {
-                        console.warn(`Ignored "metallicRoughnessTexture"; texture index "${textureIdx}" was not loaded`);
-                    } else {
-                        material.roughnessMetallicTexture = texture;
+                    if ('metallicRoughnessTexture' in gltfMat && 'index' in gltfMat.metallicRoughnessTexture) {
+                        const textureIdx = gltfMat.metallicRoughnessTexture.index;
+                        const texture = textures[textureIdx];
+                        if (texture === undefined) {
+                            console.warn(`Ignored "metallicRoughnessTexture"; missing texture index "${textureIdx}"`);
+                        } else if (texture === null) {
+                            console.warn(`Ignored "metallicRoughnessTexture"; texture index "${textureIdx}" was not loaded`);
+                        } else {
+                            material.roughnessMetallicTexture = texture;
+                        }
                     }
                 }
 
@@ -114,13 +123,21 @@ WL.registerComponent('model-loader', {
                     } else if (texture === null) {
                         console.warn(`Ignored "baseColorTexture"; texture index "${textureIdx}" was not loaded`);
                     } else {
-                        material.albedoTexture = texture;
+                        if (this.avoidPBR) {
+                            material.diffuseTexture = texture;
+                        } else {
+                            material.albedoTexture = texture;
+                        }
                     }
                 }
 
                 if ('baseColorFactor' in gltfMat) {
                     if (Array.isArray(gltfMat.baseColorFactor) && gltfMat.baseColorFactor.length === 4) {
-                        material.albedoColor = gltfMat.baseColorFactor;
+                        if (this.avoidPBR) {
+                            material.diffuseColor = gltfMat.baseColorFactor;
+                        } else {
+                            material.albedoColor = gltfMat.baseColorFactor;
+                        }
                     } else {
                         console.warn('Ignored "baseColorfactory"; invalid length or not an array');
                     }

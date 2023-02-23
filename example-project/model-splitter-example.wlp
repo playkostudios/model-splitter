@@ -242,7 +242,9 @@
                     "type": "model-loader",
                     "model-loader": {
                         "metadataURL": "model.metadata.json",
-                        "pbrTemplateMaterial": "59"
+                        "pbrTemplateMaterial": "59",
+                        "phongTemplateMaterial": "62",
+                        "avoidPBR": true
                     }
                 }
             ]
@@ -382,6 +384,10 @@
         "59": {
             "name": "PBRTemplateMaterial",
             "pipeline": "60"
+        },
+        "62": {
+            "name": "PhongTemplateMaterial",
+            "pipeline": "61"
         }
     },
     "shaders": {
@@ -628,6 +634,16 @@
                 "file": "default"
             },
             "name": "Physical All Features Textured",
+            "features": {
+                "NORMAL_MAPPING": true
+            }
+        },
+        "61": {
+            "link": {
+                "name": "Phong Opaque Textured",
+                "file": "default"
+            },
+            "name": "Phong All Features Textured",
             "features": {
                 "NORMAL_MAPPING": true
             }
