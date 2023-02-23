@@ -77,7 +77,6 @@ WL.registerComponent('model-loader', {
                 if ('normalTexture' in rawMaterial && 'index' in rawMaterial.normalTexture) {
                     const textureIdx = rawMaterial.normalTexture.index;
                     const texture = textures[textureIdx];
-                    console.log('normal', meta.textures[textureIdx], texture);
                     if (texture === undefined) {
                         console.warn(`Ignored "normalTexture"; missing texture index "${textureIdx}"`);
                     } else if (texture === null) {

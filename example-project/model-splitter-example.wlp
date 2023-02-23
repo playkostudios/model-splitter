@@ -381,7 +381,7 @@
         },
         "59": {
             "name": "PBRTemplateMaterial",
-            "pipeline": "48"
+            "pipeline": "60"
         }
     },
     "shaders": {
@@ -620,6 +620,16 @@
             "link": {
                 "name": "Phong Lightmapped",
                 "file": "default"
+            }
+        },
+        "60": {
+            "link": {
+                "name": "Physical Opaque Textured",
+                "file": "default"
+            },
+            "name": "Physical All Features Textured",
+            "features": {
+                "NORMAL_MAPPING": true
             }
         }
     },
