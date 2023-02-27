@@ -54,29 +54,112 @@ WL.registerComponent('model-loader', {
 
         const lodConfig = meta.lods[lodLevel];
 
-        // download textures
+        // download textures. this will not be necessary if the textures are
+        // embedded
         const textures = [];
-        for (const textureURL of meta.textureGroups[lodConfig.textureGroup]) {
-            let texture = null;
+        if (lodConfig.textureGroup !== undefined) {
+            for (const textureURL of meta.textureGroups[lodConfig.textureGroup]) {
+                let texture = null;
 
-            try {
-                texture = new WL.Texture(await loadImage(textureURL, 10000));
-            } catch (err) {
-                console.error(err);
-                console.warn(`Failed to download or initialize texture "${textureURL}"`);
+                try {
+                    texture = new WL.Texture(await loadImage(textureURL, 10000));
+                } catch (err) {
+                    console.error(err);
+                    console.warn(`Failed to download or initialize texture "${textureURL}"`);
+                }
+
+                if (texture !== null && !texture.valid) {
+                    console.warn(`Invalid texture "${textureURL}"; maybe the atlas is full?`);
+                    texture = null;
+                }
+
+                textures.push(texture);
             }
-
-            if (texture !== null && !texture.valid) {
-                console.warn(`Invalid texture "${textureURL}"; maybe the atlas is full?`);
-                texture = null;
-            }
-
-            textures.push(texture);
         }
 
         // parse materials
+        const materials = this.loadMaterials(textures, meta.materials);
+
+        // load model
+        const root = await WL.scene.append(lodConfig.file);
+
+        // apply materials
+        if (materials === null) {
+            return;
+        }
+
+        for (const [pathComponents, materialIdx] of meta.meshMap) {
+            const material = materials[materialIdx];
+            if (material === undefined) {
+                console.warn(`Missing material index ${materialIdx}`);
+                continue;
+            } else if (material === null) {
+                console.warn(`Ignored mesh setup for material index ${materialIdx}; material initialization failed`);
+                continue;
+            }
+
+            let focus = root;
+            for (const component of pathComponents) {
+                const oldFocus = focus;
+                for (const child of focus.children) {
+                    if (child.name === component) {
+                        focus = child;
+                        break;
+                    }
+                }
+
+                if (focus === oldFocus) {
+                    focus = null;
+                    break;
+                }
+            }
+
+            if (focus === null) {
+                console.warn(`Could not find node in path "${pathComponents.join('/')}"`);
+                continue;
+            }
+
+            let meshComponent = focus.getComponent('mesh');
+            if (meshComponent === null) {
+                // gltfpack will move the mesh component to a new unnamed child
+                // node
+                const origFocus = focus;
+                const children = focus.children;
+                if (children.length === 1) {
+                    focus = children[0];
+                    if (focus.children.length === 0) {
+                        meshComponent = focus.getComponent('mesh');
+                    }
+                } else if (children.length > 0) {
+                    for (const child of children) {
+                        if (child.name.startsWith('object_') && child.children.length === 0) {
+                            meshComponent = focus.getComponent('mesh');
+                            if (meshComponent !== null) {
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    console.warn(`Could not get mesh component for descendant "${origFocus.name}", and descendant has no unnamed child`);
+                    continue;
+                }
+
+                if (meshComponent === null) {
+                    console.warn(`Could not get mesh component for descendant "${origFocus.name}", and descendant's unnamed child has no mesh component either`);
+                    continue;
+                }
+            }
+
+            meshComponent.material = material;
+        }
+    },
+    loadMaterials(textures, rawMaterials) {
+        if (rawMaterials === undefined) {
+            return null;
+        }
+
         const materials = [];
-        const rawMaterials = meta.materials;
+
         for (const rawMaterial of rawMaterials) {
             let material = null;
 
@@ -159,73 +242,6 @@ WL.registerComponent('model-loader', {
             materials.push(material);
         }
 
-        // load model
-        const root = await WL.scene.append(lodConfig.file);
-
-        // apply materials
-        for (const [pathComponents, materialIdx] of meta.meshMap) {
-            const material = materials[materialIdx];
-            if (material === undefined) {
-                console.warn(`Missing material index ${materialIdx}`);
-                continue;
-            } else if (material === null) {
-                console.warn(`Ignored mesh setup for material index ${materialIdx}; material initialization failed`);
-                continue;
-            }
-
-            let focus = root;
-            for (const component of pathComponents) {
-                const oldFocus = focus;
-                for (const child of focus.children) {
-                    if (child.name === component) {
-                        focus = child;
-                        break;
-                    }
-                }
-
-                if (focus === oldFocus) {
-                    focus = null;
-                    break;
-                }
-            }
-
-            if (focus === null) {
-                console.warn(`Could not find node in path "${pathComponents.join('/')}"`);
-                continue;
-            }
-
-            let meshComponent = focus.getComponent('mesh');
-            if (meshComponent === null) {
-                // gltfpack will move the mesh component to a new unnamed child
-                // node
-                const origFocus = focus;
-                const children = focus.children;
-                if (children.length === 1) {
-                    focus = children[0];
-                    if (focus.children.length === 0) {
-                        meshComponent = focus.getComponent('mesh');
-                    }
-                } else if (children.length > 0) {
-                    for (const child of children) {
-                        if (child.name.startsWith('object_') && child.children.length === 0) {
-                            meshComponent = focus.getComponent('mesh');
-                            if (meshComponent !== null) {
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    console.warn(`Could not get mesh component for descendant "${origFocus.name}", and descendant has no unnamed child`);
-                    continue;
-                }
-
-                if (meshComponent === null) {
-                    console.warn(`Could not get mesh component for descendant "${origFocus.name}", and descendant's unnamed child has no mesh component either`);
-                    continue;
-                }
-            }
-
-            meshComponent.material = material;
-        }
+        return materials;
     },
 });

@@ -59,7 +59,7 @@ function traverseNode(meshToNodePath, nodes, nodePath, node) {
     nodePath.pop();
 }
 
-function extractMaterials(results, modelName) {
+function extractMaterials(results) {
     // map nodes to meshes; WLE can't reference meshes directly when loaded via
     // WL.scene.append, so we have to map a scene path to a mesh object
     const meshToNodePath = new Map();
@@ -100,7 +100,6 @@ function extractMaterials(results, modelName) {
     // extract materials, textures and images, and remove samplers
     delete model.samplers;
     const textures = model.textures;
-    const textureCount = textures.length;
     delete model.textures;
     const materials = model.materials;
     delete model.materials;
@@ -122,16 +121,19 @@ function extractMaterials(results, modelName) {
         }
     ];
 
+    return [textures, images, { meshMap, materials }];
+}
+
+function makeFriendlyTextureNames(modelName, separateResources, textures, images) {
     // convert textures to friendlier format
     const newResources = {};
+    const textureCount = textures.length;
     for (let i = 0; i < textureCount; i++) {
         const oldURI = images[textures[i].source].uri;
-        newResources[`${modelName}.TEX${i}${path.extname(oldURI)}`] = results.separateResources[oldURI];
+        newResources[`${modelName}.TEX${i}${path.extname(oldURI)}`] = separateResources[oldURI];
     }
 
-    results.separateResources = newResources;
-
-    return { meshMap, materials };
+    return newResources;
 }
 
 async function simplifyModel(modelBuffer, modelOutPath, lodRatio = null) {
@@ -166,10 +168,6 @@ async function simplifyModel(modelBuffer, modelOutPath, lodRatio = null) {
 }
 
 async function splitModel(inputModelPath, outputFolder, lods, embedTextures = false, defaultResizeOpt = null) {
-    if (embedTextures) {
-        throw new Error('not implemented');
-    }
-
     // make output folder
     fs.mkdirSync(outputFolder, { recursive: true });
 
@@ -201,8 +199,16 @@ async function splitModel(inputModelPath, outputFolder, lods, embedTextures = fa
         lod[1] = j;
     }
 
-    // generate metadata
-    const metadata = extractMaterials(results, modelName);
+    // extract materials to metadata object if needed
+    let metadata;
+    if (embedTextures) {
+        metadata = {};
+        results.separateResources = makeFriendlyTextureNames(modelName, results.separateResources, results.gltf.textures, results.gltf.images);
+    } else {
+        let textures, images;
+        [textures, images, metadata] = extractMaterials(results, embedTextures);
+        results.separateResources = makeFriendlyTextureNames(modelName, results.separateResources, textures, images);
+    }
 
     // resize textures and convert metadata
     const textureList = separateTextures(results.separateResources, outputFolder);
@@ -226,7 +232,9 @@ async function splitModel(inputModelPath, outputFolder, lods, embedTextures = fa
         texGroups.push(texGroup);
     }
 
-    metadata.textureGroups = texGroups;
+    if (!embedTextures) {
+        metadata.textureGroups = texGroups;
+    }
 
     // delete input textures
     for (const inPath of textureList) {
@@ -234,23 +242,93 @@ async function splitModel(inputModelPath, outputFolder, lods, embedTextures = fa
     }
 
     // simplify models for each LOD, add to metadata
-    const glbResults = await gltf.gltfToGlb(results.gltf);
-    const glbModel = glbResults.glb;
     metadata.lods = [];
 
-    for (let i = 0; i < lods.length; i++) {
-        const outName = `${modelName}.LOD${i}.glb`;
-        const outPath = path.resolve(outputFolder, outName);
-        const lod = lods[i];
-        const lodRatio = lod[0];
-        await simplifyModel(glbModel, outPath, lodRatio);
+    if (embedTextures) {
+        // make gltfs for each texture group when embedding textures
+        const texGroupModels = [];
+        const origImages = results.gltf.images ?? [];
+        const origBuffers = results.gltf.buffers ?? [];
+        const origBufferViews = results.gltf.bufferViews ?? [];
 
-        metadata.lods.push({
-            file: outName,
-            lodRatio,
-            textureGroup: lod[1],
-            bytes: fs.statSync(outPath).size
-        });
+        for (const texGroup of texGroups) {
+            const texGroupModel = { ...results.gltf };
+            texGroupModel.images = [];
+            texGroupModel.buffers = [...origBuffers];
+            texGroupModel.bufferViews = [...origBufferViews];
+
+            for (let i = 0; i < texGroup.length; i++) {
+                // convert texture to buffer
+                const texFileName = texGroup[i];
+
+                const bufferIdx = texGroupModel.buffers.length;
+                const texBuffer = fs.readFileSync(path.resolve(outputFolder, texFileName));
+                const byteLength = texBuffer.byteLength;
+                texGroupModel.buffers.push({
+                    name: texFileName,
+                    byteLength,
+                    uri: `data:application/octet-stream;base64,${texBuffer.toString('base64')}`
+                });
+
+                const bufferViewIdx = texGroupModel.bufferViews.length;
+                texGroupModel.bufferViews.push({
+                    buffer: bufferIdx,
+                    byteOffset: 0,
+                    byteLength
+                });
+
+                const origImage = origImages[i];
+                texGroupModel.images.push({
+                    bufferView: bufferViewIdx,
+                    mimeType: origImage.mimeType,
+                    name: origImage.name
+                });
+            }
+
+            const glbResults = await gltf.gltfToGlb(texGroupModel);
+            texGroupModels.push(glbResults.glb);
+        }
+
+        // delete textures
+        for (const texGroup of texGroups) {
+            for (const texturePath of texGroup) {
+                fs.rmSync(path.resolve(outputFolder, texturePath));
+            }
+        }
+
+        // simplify model of each texture group
+        for (let i = 0; i < lods.length; i++) {
+            const outName = `${modelName}.LOD${i}.glb`;
+            const outPath = path.resolve(outputFolder, outName);
+            const lod = lods[i];
+            const lodRatio = lod[0];
+            await simplifyModel(texGroupModels[lod[1]], outPath, lodRatio);
+
+            metadata.lods.push({
+                file: outName,
+                lodRatio,
+                bytes: fs.statSync(outPath).size
+            });
+        }
+    } else {
+        // simplify model
+        const glbResults = await gltf.gltfToGlb(results.gltf);
+        const glbModel = glbResults.glb;
+
+        for (let i = 0; i < lods.length; i++) {
+            const outName = `${modelName}.LOD${i}.glb`;
+            const outPath = path.resolve(outputFolder, outName);
+            const lod = lods[i];
+            const lodRatio = lod[0];
+            await simplifyModel(glbModel, outPath, lodRatio);
+
+            metadata.lods.push({
+                file: outName,
+                lodRatio,
+                textureGroup: lod[1],
+                bytes: fs.statSync(outPath).size
+            });
+        }
     }
 
     // write metadata
