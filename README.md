@@ -4,13 +4,19 @@ Splits a model into multiple models with different LOD levels and downscales
 textures.
 
 Usage:
-`model-splitter <input file> <output folder> [--embed-textures] [--texture-size <percentage or target side length>] <lod 1 simplification ratio>[:<texture percentage or target side length>] <lod 2 simplification ratio>[:<texture percentage or target side length>] ...`
+```
+model-splitter <input file> <output folder> [--embed-textures] [--texture-size <percentage or target side length>] <lod 1 simplification ratio>[:<texture percentage or target side length>] <lod 2 simplification ratio>[:<texture percentage or target side length>] ...
+```
 
 Example usage:
 - Split a model named "model.glb" into the folder "output" with 6 LOD levels (100%, 90%, 75%, 50%, 25%, and 12.5% mesh kept) and a texture size of 25%
-`model-splitter model.glb output 1 0.9 0.75 0.5 0.25 0.125 --texture-size 25%`
+```
+model-splitter model.glb output 1 0.9 0.75 0.5 0.25 0.125 --texture-size 25%
+```
 - Split a model named "model.glb" into the folder "output" with 4 LOD levels (100%, 75%, 50%, and 25% mesh kept) and a texture size of 100%, 50%, 25% and 12.5% respectively
-`model-splitter model.glb output 1 0.75:50% 0.5:25% 0.25:12.5%`
+```
+model-splitter model.glb output 1 0.75:50% 0.5:25% 0.25:12.5%
+```
 
 Options:
 - `<input file>`: The model file to split into LODs
