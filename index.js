@@ -123,20 +123,15 @@ function extractMaterials(results, modelName) {
     ];
 
     // convert textures to friendlier format
-    const friendlyTextures = [];
     const newResources = {};
     for (let i = 0; i < textureCount; i++) {
-        const texture = textures[i];
-        const oldURI = images[texture.source].uri;
-        const ext = path.extname(oldURI);
-        const newURI = `${modelName}.TEX${i}${ext}`;
-        friendlyTextures.push(newURI);
-        newResources[newURI] = results.separateResources[oldURI];
+        const oldURI = images[textures[i].source].uri;
+        newResources[`${modelName}.TEX${i}${path.extname(oldURI)}`] = results.separateResources[oldURI];
     }
 
     results.separateResources = newResources;
 
-    return { meshMap, textures: friendlyTextures, materials };
+    return { meshMap, materials };
 }
 
 async function simplifyModel(modelBuffer, modelOutPath, lodRatio = null) {
@@ -219,7 +214,7 @@ async function splitModel(inputModelPath, outputFolder, lods, embedTextures = fa
         for (const inPath of textureList) {
             const ext = path.extname(inPath);
             const outPath = `${inPath.substring(0, inPath.length - ext.length)}.SCALE${i}${ext}`;
-            texGroup.push(outPath);
+            texGroup.push(path.basename(outPath));
 
             if (resizeOpt === null) {
                 fs.copyFileSync(inPath, outPath);

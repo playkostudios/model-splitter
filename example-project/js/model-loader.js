@@ -52,9 +52,11 @@ WL.registerComponent('model-loader', {
             console.warn(`LOD level exceeds maximum (lowest detail). Corrected to ${lodLevel}`);
         }
 
+        const lodConfig = meta.lods[lodLevel];
+
         // download textures
         const textures = [];
-        for (const textureURL of meta.textures) {
+        for (const textureURL of meta.textureGroups[lodConfig.textureGroup]) {
             let texture = null;
 
             try {
@@ -158,7 +160,7 @@ WL.registerComponent('model-loader', {
         }
 
         // load model
-        const root = await WL.scene.append(meta.lods[lodLevel].file);
+        const root = await WL.scene.append(lodConfig.file);
 
         // apply materials
         for (const [pathComponents, materialIdx] of meta.meshMap) {
