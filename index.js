@@ -33,9 +33,9 @@ function separateTextures(separateResources, outputFolder) {
     return textureList;
 }
 
-function downscaleTexture(path, resizeOpts) {
+function downscaleTexture(inPath, outPath, resizeOpt) {
     return new Promise((resolve, reject) => {
-        gm(path).resize(...resizeOpts).write(path, e => e ? reject(e) : resolve());
+        gm(inPath).resize(resizeOpt).write(outPath, e => e ? reject(e) : resolve());
     })
 }
 
@@ -170,8 +170,15 @@ async function simplifyModel(modelBuffer, modelOutPath, lodRatio = null) {
     }
 }
 
-async function splitModel(inputModelPath, outputFolder, resizeOpts = null, lods = [1]) {
+async function splitModel(inputModelPath, outputFolder, lods, embedTextures = false, defaultResizeOpt = null) {
+    if (embedTextures) {
+        throw new Error('not implemented');
+    }
+
+    // make output folder
     fs.mkdirSync(outputFolder, { recursive: true });
+
+    // parse model
     const results = await parseModel(inputModelPath);
 
     let modelName = path.basename(inputModelPath);
@@ -180,15 +187,58 @@ async function splitModel(inputModelPath, outputFolder, resizeOpts = null, lods 
         modelName = modelName.substring(0, modelName.length - extLen);
     }
 
-    const metadata = extractMaterials(results, modelName);
-
-    const textureList = separateTextures(results.separateResources, outputFolder);
-    if (resizeOpts !== null) {
-        for (const path of textureList) {
-            downscaleTexture(path, resizeOpts);
+    // calculate effective texture resizing for each LOD
+    const scaledTextures = [];
+    for (let i = 0; i < lods.length; i++) {
+        const lod = lods[i];
+        if (lod[1] === null) {
+            lod[1] = defaultResizeOpt;
         }
+
+        const jMax = scaledTextures.length;
+        let j = 0;
+        for (; j < jMax && scaledTextures[j] !== lod[1]; j++);
+
+        if (j === jMax) {
+            scaledTextures.push(lod[1]);
+        }
+
+        lod[1] = j;
     }
 
+    // generate metadata
+    const metadata = extractMaterials(results, modelName);
+
+    // resize textures and convert metadata
+    const textureList = separateTextures(results.separateResources, outputFolder);
+    const texGroups = [];
+    for (let i = 0; i < scaledTextures.length; i++) {
+        const resizeOpt = scaledTextures[i];
+        const texGroup = [];
+
+        for (const inPath of textureList) {
+            const ext = path.extname(inPath);
+            const outPath = `${inPath.substring(0, inPath.length - ext.length)}.SCALE${i}${ext}`;
+            texGroup.push(outPath);
+
+            if (resizeOpt === null) {
+                fs.copyFileSync(inPath, outPath);
+            } else {
+                await downscaleTexture(inPath, outPath, resizeOpt);
+            }
+        }
+
+        texGroups.push(texGroup);
+    }
+
+    metadata.textureGroups = texGroups;
+
+    // delete input textures
+    for (const inPath of textureList) {
+        fs.rmSync(inPath);
+    }
+
+    // simplify models for each LOD, add to metadata
     const glbResults = await gltf.gltfToGlb(results.gltf);
     const glbModel = glbResults.glb;
     metadata.lods = [];
@@ -196,40 +246,70 @@ async function splitModel(inputModelPath, outputFolder, resizeOpts = null, lods 
     for (let i = 0; i < lods.length; i++) {
         const outName = `${modelName}.LOD${i}.glb`;
         const outPath = path.resolve(outputFolder, outName);
-        const lodRatio = lods[i];
+        const lod = lods[i];
+        const lodRatio = lod[0];
         await simplifyModel(glbModel, outPath, lodRatio);
 
         metadata.lods.push({
             file: outName,
             lodRatio,
+            textureGroup: lod[1],
             bytes: fs.statSync(outPath).size
         });
     }
 
+    // write metadata
     fs.writeFileSync(path.resolve(outputFolder, `${modelName}.metadata.json`), JSON.stringify(metadata));
 }
 
 module.exports = splitModel;
 
-function printHelp(execPath) {
-    const execName = path.basename(execPath);
-    console.log(`
+if (typeof require !== 'undefined' && require.main === module) {
+    function parseResizeArg(arg) {
+        if (arg.endsWith('%')) {
+            const percent = Number(arg.substring(0, arg.length - 1));
+            if (isNaN(percent) || percent <= 0) {
+                throw new Error('Invalid percentage. Must be a number > 0');
+            }
+
+            return arg;
+        } else {
+            const sideLength = Number(arg);
+            if (isNaN(sideLength) || sideLength <= 0) {
+                throw new Error('Invalid side length. Must be a number > 0');
+            }
+
+            return `${sideLength}x${sideLength}!`;
+        }
+    }
+
+    function printHelp(execPath) {
+        const execName = path.basename(execPath);
+        console.log(`
 Usage:
-${execName} <input file> <output folder> [--texture-size <percentage or target side length>] <lod 1 simplification ratio> <lod 2 simplification ratio> ...
+${execName} <input file> <output folder> [--embed-textures] [--texture-size <percentage or target side length>] <lod 1 simplification ratio>[:<texture percentage or target side length>] <lod 2 simplification ratio>[:<texture percentage or target side length>] ...
 
 Example usage:
-${execName} model.glb output 0.9 0.75 0.5 0.25 0.125 --texture-size 25%
+- Split a model named "model.glb" into the folder "output" with 6 LOD levels (100%, 90%, 75%, 50%, 25%, and 12.5% mesh kept) and a texture size of 25%
+${execName} model.glb output 1 0.9 0.75 0.5 0.25 0.125 --texture-size 25%
+- Split a model named "model.glb" into the folder "output" with 4 LOD levels (100%, 75%, 50%, and 25% mesh kept) and a texture size of 100%, 50%, 25% and 12.5% respectively
+${execName} model.glb output 1 0.75:50% 0.5:25% 0.25:12.5%
 
-Note that there is always a LOD0 with a simplification ratio of 1 (no simplification). This behaviour can be skipped by using ${execName} as a library instead of as a CLI tool.`
-    );
-}
+Options:
+- <input file>: The model file to split into LODs
+- <output folder>: The folder to put the split model into
+- --embed-textures: Force each LOD model to have embedded textures instead of external textures
+- --texture-size <percentage or target side length>: The texture size to use for each generated LOD if it's not specified in the LOD arguments
+- <lod simplification ratio>[:<texture percentage or target side length>]: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture option is equivalent to "--texture-size" but only applies to this LOD`
+        );
+    }
 
-if (typeof require !== 'undefined' && require.main === module) {
     // running from CLI. parse arguments
     let inputPath = null;
     let outputFolder = null;
     let resizeOpts = null;
-    const lods = [1];
+    let embedTextures = false;
+    const lods = [];
 
     try {
         const cliArgs = process.argv.slice(2);
@@ -242,34 +322,35 @@ if (typeof require !== 'undefined' && require.main === module) {
                 outputFolder = arg;
             } else if (expectResizeOpt) {
                 expectResizeOpt = false;
-                if (arg.endsWith('%')) {
-                    const percent = Number(arg.substring(0, arg.length - 1));
-                    if (isNaN(percent) || percent <= 0) {
-                        throw new Error('Invalid percentage. Must be a number > 0');
-                    }
-
-                    resizeOpts = [arg];
-                } else {
-                    const sideLength = Number(arg);
-                    if (isNaN(sideLength) || sideLength <= 0) {
-                        throw new Error('Invalid side length. Must be a number > 0');
-                    }
-
-                    resizeOpts = [`${sideLength}x${sideLength}!`];
-                }
+                resizeOpts = parseResizeArg(arg);
             } else if (arg === '--texture-size') {
                 if (resizeOpts !== null) {
                     throw new Error('--texture-size can only be specified once');
                 }
 
                 expectResizeOpt = true;
+            } else if (arg === '--embed-textures') {
+                embedTextures = true;
             } else {
-                const lodRatio = Number(arg);
-                if (isNaN(lodRatio) || lodRatio <= 0 || lodRatio > 1) {
-                    throw new Error('Invalid LOD simplification ratio. Must be a number > 0 and <= 1');
+                const parts = arg.split(':');
+                if (parts.length > 2) {
+                    throw new Error('LOD arguments can have at most 2 parts');
                 }
 
-                lods.push(lodRatio);
+                let lodRatio = 1;
+                if (parts[0] !== '') {
+                    lodRatio = Number(parts[0]);
+                    if (isNaN(lodRatio) || lodRatio <= 0 || lodRatio > 1) {
+                        throw new Error('Invalid LOD simplification ratio. Must be a number > 0 and <= 1');
+                    }
+                }
+
+                let resizeOpt = null;
+                if (parts[1] !== '' && parts[1] !== undefined) {
+                    resizeOpt = parseResizeArg(parts[1]);
+                }
+
+                lods.push([lodRatio, resizeOpt]);
             }
         }
 
@@ -287,7 +368,7 @@ if (typeof require !== 'undefined' && require.main === module) {
     }
 
     try {
-        splitModel(inputPath, outputFolder, resizeOpts, lods);
+        splitModel(inputPath, outputFolder, lods, embedTextures, resizeOpts);
     } catch(e) {
         console.error('Error occurred while splitting model:', e);
         process.exit(2);

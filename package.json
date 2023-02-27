@@ -1,6 +1,6 @@
 {
   "name": "model-splitter",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Splits a model into multiple models with different LOD levels and downscales textures",
   "main": "index.js",
   "scripts": {},
@@ -13,6 +13,7 @@
     "Playko (https://www.playko.com/)"
   ],
   "license": "UNLICENSED",
+  "private": true,
   "bugs": {
     "url": "https://github.com/playkostudios/model-splitter/issues"
   },
