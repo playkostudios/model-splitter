@@ -1,6 +1,7 @@
-function loadImage(/** @type {string} */ url, /** @type {number} */ timeoutMS) {
+function loadImage(/** @type {string} */ urlFilename, /** @type {string | undefined} */ urlRoot, /** @type {number} */ timeoutMS) {
     return new Promise((resolve, reject) => {
         const img = document.createElement('img');
+        const url = new URL(urlFilename, urlRoot);
         img.src = url;
 
         function settle(callback) {
@@ -21,7 +22,8 @@ function loadImage(/** @type {string} */ url, /** @type {number} */ timeoutMS) {
 }
 
 WL.registerComponent('model-loader', {
-    metadataURL: {type: WL.Type.String},
+    cdnRoot: {type: WL.Type.String},
+    metadataURLFilename: {type: WL.Type.String},
     lod: {type: WL.Type.Int, default: 0},
     avoidPBR: {type: WL.Type.Bool, default: false},
     pbrTemplateMaterial: {type: WL.Type.Material},
@@ -29,11 +31,17 @@ WL.registerComponent('model-loader', {
 }, {
     init: async function() {
         // fetch metadata
-        if (this.metadataURL === '') {
+        if (this.metadataURLFilename === '') {
             throw new Error('No metadata URL specified');
         }
 
-        const reponse = await fetch(this.metadataURL);
+        let cdnRoot = this.cdnRoot === '' ? undefined : this.cdnRoot;
+        if (cdnRoot.startsWith('~')) {
+            cdnRoot = new URL(cdnRoot.substring(1), window.location).href;
+        }
+
+        const url = new URL(this.metadataURLFilename, cdnRoot);
+        const reponse = await fetch(url);
         if (!reponse.ok) {
             throw new Error('Could not fetch metadata; not OK');
         }
@@ -62,7 +70,7 @@ WL.registerComponent('model-loader', {
                 let texture = null;
 
                 try {
-                    texture = new WL.Texture(await loadImage(textureURL, 10000));
+                    texture = new WL.Texture(await loadImage(textureURL, cdnRoot, 10000));
                 } catch (err) {
                     console.error(err);
                     console.warn(`Failed to download or initialize texture "${textureURL}"`);
@@ -81,10 +89,12 @@ WL.registerComponent('model-loader', {
         const materials = this.loadMaterials(textures, meta.materials);
 
         // load model
-        const root = await WL.scene.append(lodConfig.file);
+        const modelURL = new URL(lodConfig.file, cdnRoot);
+        const root = await WL.scene.append(modelURL.href);
 
         // apply materials
         if (materials === null) {
+            this.replaceMaterials(root);
             return;
         }
 
@@ -151,6 +161,13 @@ WL.registerComponent('model-loader', {
             }
 
             meshComponent.material = material;
+
+            // const mesh = meshComponent.mesh;
+            // meshComponent.active = false;
+            // meshComponent.destroy();
+            // setTimeout(() => {
+            //     focus.addComponent('mesh', { mesh, material })
+            // }, 1000);
         }
     },
     loadMaterials(textures, rawMaterials) {
@@ -243,5 +260,48 @@ WL.registerComponent('model-loader', {
         }
 
         return materials;
+    },
+    transferUniform(srcMat, dstMat, uniformName) {
+        const origValue = srcMat[uniformName];
+        if (origValue !== undefined) {
+            dstMat[uniformName] = origValue;
+        }
+    },
+    replaceMaterials(obj) {
+        const meshComp = obj.getComponent('mesh');
+        if (meshComp) {
+            const srcMat = meshComp.material;
+            if (srcMat) {
+                if (srcMat.shader === 'Physical Opaque Textured') {
+                    const dstMat = this.pbrTemplateMaterial.clone();
+                    meshComp.material = dstMat;
+
+                    this.transferUniform(srcMat, dstMat, 'albedoColor');
+                    this.transferUniform(srcMat, dstMat, 'metallicFactor');
+                    this.transferUniform(srcMat, dstMat, 'roughnessFactor');
+                    this.transferUniform(srcMat, dstMat, 'albedoTexture');
+                    this.transferUniform(srcMat, dstMat, 'roughnessMetallicTexture');
+                    this.transferUniform(srcMat, dstMat, 'normalTexture');
+                } else if (srcMat.shader === 'Phong Opaque Textured') {
+                    const dstMat = this.phongTemplateMaterial.clone();
+                    meshComp.material = dstMat;
+
+                    this.transferUniform(srcMat, dstMat, 'ambientColor');
+                    this.transferUniform(srcMat, dstMat, 'diffuseColor');
+                    this.transferUniform(srcMat, dstMat, 'specularColor');
+                    this.transferUniform(srcMat, dstMat, 'fogColor');
+                    this.transferUniform(srcMat, dstMat, 'diffuseTexture');
+                    this.transferUniform(srcMat, dstMat, 'normalTexture');
+                    this.transferUniform(srcMat, dstMat, 'shininess');
+                    this.transferUniform(srcMat, dstMat, 'ambientFactor');
+                } else {
+                    console.warn('Unknown shader ignored', srcMat.shader);
+                }
+            }
+        }
+
+        for (const child of obj.children) {
+            this.replaceMaterials(child);
+        }
     },
 });

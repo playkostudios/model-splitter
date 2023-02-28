@@ -241,10 +241,12 @@
                 {
                     "type": "model-loader",
                     "model-loader": {
-                        "metadataURL": "model.metadata.json",
                         "pbrTemplateMaterial": "59",
                         "phongTemplateMaterial": "62",
-                        "avoidPBR": true
+                        "avoidPBR": true,
+                        "lod": 0,
+                        "cdnRoot": "~embedded/",
+                        "metadataURLFilename": "model.metadata.json"
                     }
                 }
             ]
@@ -606,7 +608,11 @@
             "name": "Physical All Features Textured",
             "features": {
                 "NORMAL_MAPPING": true
-            }
+            },
+            "blending": true,
+            "blendSrcRgb": "source alpha",
+            "blendDestRgb": "one minus source alpha",
+            "sampleAlphaToCoverage": true
         },
         "61": {
             "link": {
@@ -615,8 +621,17 @@
             },
             "name": "Phong All Features Textured",
             "features": {
-                "NORMAL_MAPPING": true
-            }
+                "NORMAL_MAPPING": true,
+                "WITH_EMISSIVE": false,
+                "WITH_FOG": true,
+                "ALPHA_MASKED": false
+            },
+            "blending": true,
+            "blendSrcRgb": "source alpha",
+            "blendDestAlpha": "zero",
+            "blendDestRgb": "one minus source alpha",
+            "blendSrcAlpha": "one",
+            "sampleAlphaToCoverage": true
         }
     },
     "textures": {},
