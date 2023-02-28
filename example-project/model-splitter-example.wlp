@@ -612,7 +612,10 @@
             "blending": true,
             "blendSrcRgb": "source alpha",
             "blendDestRgb": "one minus source alpha",
-            "sampleAlphaToCoverage": true
+            "sampleAlphaToCoverage": false,
+            "blendSrcAlpha": "source alpha",
+            "blendDestAlpha": "one minus source alpha",
+            "blendEqAlpha": "max"
         },
         "61": {
             "link": {
@@ -628,10 +631,11 @@
             },
             "blending": true,
             "blendSrcRgb": "source alpha",
-            "blendDestAlpha": "zero",
+            "blendDestAlpha": "one minus source alpha",
             "blendDestRgb": "one minus source alpha",
-            "blendSrcAlpha": "one",
-            "sampleAlphaToCoverage": true
+            "blendSrcAlpha": "source alpha",
+            "sampleAlphaToCoverage": false,
+            "blendEqAlpha": "max"
         }
     },
     "textures": {},
