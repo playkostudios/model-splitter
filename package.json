@@ -8,20 +8,16 @@
   "type": "commonjs",
   "bin": "lib/cli.js",
   "scripts": {
-    "clean": "rimraf lib/* && rimraf ./model-splitter-cli-standalone-linux.zip && rimraf ./model-splitter-cli-standalone-macos.zip && rimraf ./model-splitter-cli-standalone-win.zip",
+    "clean": "rimraf lib/* && rimraf pkgs/*",
     "copy-cesium-blobs": "shx cp -r node_modules/cesium/Build ./lib/",
     "copy-gltfpack-blobs": "shx cp node_modules/gltfpack/library.wasm ./lib/",
     "copy-third-party-blobs": "npm run copy-cesium-blobs && npm run copy-gltfpack-blobs",
     "build-lib": "tsc && esbuild --minify --bundle --sourcemap --target=es6 --platform=node --format=cjs --outfile=lib/index.cjs.js src/lib.ts",
     "build-cli": "npm run copy-third-party-blobs && esbuild --minify --bundle --target=es6 --platform=node --format=iife --banner:js='#!/usr/bin/env node' --outfile=lib/cli.js src/cli.ts",
-    "pkg-cli": "pkg lib/cli.js --assets lib/Build --assets lib/library.wasm --targets node18-linux-x64,node18-macos-x64,node18-win-x64 --compress GZip --out-path pkgs/",
-    "bundle-linux-pkg": "jszip-cli add --output model-splitter-cli-standalone-linux.zip pkgs/cli-linux lib/Build lib/library.wasm",
-    "bundle-macos-pkg": "jszip-cli add --output model-splitter-cli-standalone-macos.zip pkgs/cli-macos lib/Build lib/library.wasm",
-    "bundle-win-pkg": "jszip-cli add --output model-splitter-cli-standalone-win.zip pkgs/cli-win lib/Build lib/library.wasm",
-    "bundle-all-pkgs": "npm run bundle-linux-pkg && npm run bundle-macos-pkg && npm run bundle-win-pkg",
+    "pkg-cli": "pkg lib/cli.js --config cli-pkg-config.json --compress GZip",
     "build-all": "npm run build-lib && npm run build-cli",
     "pkg-all": "npm run pkg-cli",
-    "build-pkg-all": "npm run clean && npm run build-all && npm run pkg-all && npm run bundle-all-pkgs"
+    "build-pkg-all": "npm run clean && npm run build-all && npm run pkg-all"
   },
   "files": [
     "lib"
@@ -41,7 +37,6 @@
   },
   "homepage": "https://github.com/playkostudios/model-splitter#readme",
   "devDependencies": {
-    "@ffflorian/jszip-cli": "^3.1.9",
     "@nodegui/nodegui": "^0.58.0",
     "@types/gm": "^1.25.0",
     "@types/node": "^18.14.6",

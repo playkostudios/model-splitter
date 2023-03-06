@@ -1,7 +1,7 @@
 import { basename } from 'node:path';
 import splitModel from './lib';
 
-import type { LODConfigList, PackedResizeOption } from '.';
+import type { LODConfigList, PackedResizeOption } from './lib';
 
 function parseResizeArg(arg: string): PackedResizeOption {
     if (arg.endsWith('%')) {

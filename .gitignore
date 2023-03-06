@@ -11,7 +11,4 @@ package-lock.json
 pnpm-lock.yaml
 lib/
 pkgs/
-/model-splitter-cli-standalone-linux.zip
-/model-splitter-cli-standalone-macos.zip
-/model-splitter-cli-standalone-win.zip
 .editor/
