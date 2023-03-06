@@ -43,9 +43,9 @@ Options:
 }
 
 // running from CLI. parse arguments
-let inputPath = null;
-let outputFolder = null;
-let resizeOpts = null;
+let inputPath: string | null = null;
+let outputFolder: string | null = null;
+let resizeOpts: PackedResizeOption | null = null;
 let embedTextures = false;
 const lods: LODConfigList = [];
 
