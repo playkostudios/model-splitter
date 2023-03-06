@@ -8,16 +8,19 @@
   "type": "commonjs",
   "bin": "lib/cli.js",
   "scripts": {
-    "clean": "rimraf lib/* && rimraf pkgs/*",
+    "clean": "shx rm -rf lib/* && shx rm -rf pkgs/*",
     "copy-cesium-blobs": "shx cp -r node_modules/cesium/Build ./lib/",
     "copy-gltfpack-blobs": "shx cp node_modules/gltfpack/library.wasm ./lib/",
     "copy-third-party-blobs": "npm run copy-cesium-blobs && npm run copy-gltfpack-blobs",
     "build-lib": "tsc && esbuild --minify --bundle --sourcemap --target=es6 --platform=node --format=cjs --outfile=lib/index.cjs.js src/lib.ts",
-    "build-cli": "npm run copy-third-party-blobs && esbuild --minify --bundle --target=es6 --platform=node --format=iife --banner:js='#!/usr/bin/env node' --outfile=lib/cli.js src/cli.ts",
+    "build-cli": "esbuild --minify --bundle --target=es6 --platform=node --format=iife --banner:js='#!/usr/bin/env node' --outfile=lib/cli.js src/cli.ts",
+    "build-gui": "electron-esbuild build",
     "pkg-cli": "pkg lib/cli.js --config cli-pkg-config.json --compress GZip",
-    "build-all": "npm run build-lib && npm run build-cli",
-    "pkg-all": "npm run pkg-cli",
-    "build-pkg-all": "npm run clean && npm run build-all && npm run pkg-all"
+    "pkg-gui": "electron-builder",
+    "build-all": "npm run build-lib && npm run build-cli && npm run build-gui",
+    "pkg-all": "npm run pkg-cli && npm run pkg-gui",
+    "build-pkg-all": "npm run clean && npm run copy-third-party-blobs && npm run build-all && npm run pkg-all",
+    "gui-dev": "electron-esbuild dev"
   },
   "files": [
     "lib"
@@ -25,6 +28,10 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/playkostudios/model-splitter.git"
+  },
+  "author": {
+    "name": "Playko",
+    "url": "https://www.playko.com/"
   },
   "contributors": [
     "Rafael Fernandes <rafael@playko.com>",
@@ -37,18 +44,65 @@
   },
   "homepage": "https://github.com/playkostudios/model-splitter#readme",
   "devDependencies": {
-    "@nodegui/nodegui": "^0.58.0",
     "@types/gm": "^1.25.0",
     "@types/node": "^18.14.6",
+    "@types/react": "^18.0.28",
+    "@types/react-dom": "^18.0.11",
     "babylonjs-gltf2interface": "^5.49.0",
     "cesium": "^1.103.0",
-    "esbuild": "^0.17.11",
+    "electron": "^23.1.2",
+    "electron-builder": "^23.6.0",
+    "electron-esbuild": "^7.0.0",
+    "electron-util": "^0.17.2",
+    "esbuild": "^0.16",
     "gltf-pipeline": "^4.0.2",
     "gltfpack": "^0.18.0",
     "gm": "^1.25.0",
     "pkg": "^5.8.0",
-    "rimraf": "^4.3.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "shx": "^0.3.4",
     "typescript": "^4.9.5"
+  },
+  "build": {
+    "appId": "com.playko.model-splitter-gui",
+    "productName": "model-splitter-gui",
+    "extraMetadata": {
+      "name": "model-splitter-gui",
+      "main": "main.js"
+    },
+    "files": [
+      {
+        "from": ".",
+        "filter": [
+          "package.json"
+        ]
+      },
+      {
+        "from": "dist/main"
+      },
+      {
+        "from": "dist/renderer"
+      }
+    ],
+    "win": {
+      "target": [
+        "zip"
+      ]
+    },
+    "mac": {
+      "target": [
+        "zip"
+      ]
+    },
+    "linux": {
+      "target": [
+        "zip"
+      ]
+    },
+    "directories": {
+      "buildResources": "resources"
+    },
+    "publish": null
   }
 }
