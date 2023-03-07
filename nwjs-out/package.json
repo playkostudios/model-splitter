@@ -1,5 +1,6 @@
 {
   "name": "model-splitter-gui",
   "main": "index.html",
-  "packageManager": "pnpm@7.29.0"
+  "packageManager": "pnpm@7.29.0",
+  "nodejs": true
 }

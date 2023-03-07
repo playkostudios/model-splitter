@@ -9,11 +9,11 @@
   "bin": "lib/cli.js",
   "packageManager": "pnpm@7.29.0",
   "scripts": {
-    "clean": "shx rm -rf lib/* pkgs/* nwjs-out/bundle.js nwjs-out/bundle.js.map nwjs-out/library.wasm nwjs-out/Build",
-    "copy-cesium-blobs": "shx cp -r node_modules/cesium/Build ./lib/",
-    "copy-gltfpack-blobs": "shx cp node_modules/gltfpack/library.wasm ./lib/",
-    "copy-nwjs-cesium-blobs": "shx cp -r node_modules/cesium/Build ./nwjs-out/",
-    "copy-nwjs-gltfpack-blobs": "shx cp node_modules/gltfpack/library.wasm ./nwjs-out/",
+    "clean": "shx rm -rf lib/* pkgs/* nwjs-out/*-bundle.js nwjs-out/*-bundle.js.map nwjs-out/library.wasm nwjs-out/Build",
+    "copy-cesium-blobs": "shx mkdir -p ./lib/Build/CesiumUnminified/ && shx cp ./node_modules/cesium/Build/CesiumUnminified/index.cjs ./lib/Build/CesiumUnminified/index.cjs",
+    "copy-gltfpack-blobs": "shx cp ./node_modules/gltfpack/library.wasm ./lib/",
+    "copy-nwjs-cesium-blobs": "shx mkdir -p ./nwjs-out/Build/CesiumUnminified/ && shx cp ./node_modules/cesium/Build/CesiumUnminified/index.cjs ./nwjs-out/Build/CesiumUnminified/index.cjs",
+    "copy-nwjs-gltfpack-blobs": "shx cp ./node_modules/gltfpack/library.wasm ./nwjs-out/",
     "copy-third-party-blobs": "pnpm run copy-cesium-blobs && pnpm run copy-gltfpack-blobs && pnpm run copy-nwjs-cesium-blobs && pnpm run copy-nwjs-gltfpack-blobs",
     "build-lib": "tsc && esbuild --minify --bundle --sourcemap --target=es6 --platform=node --format=cjs --outfile=lib/index.cjs.js src/lib.ts",
     "build-cli": "esbuild --minify --bundle --target=es6 --platform=node --format=iife --banner:js='#!/usr/bin/env node' --outfile=lib/cli.js src/cli.ts",
@@ -23,7 +23,7 @@
     "build-all": "pnpm run build-lib && pnpm run build-cli && pnpm run build-gui",
     "pkg-all": "pnpm run pkg-cli && pnpm run pkg-gui",
     "build-pkg-all": "pnpm run clean && pnpm run copy-third-party-blobs && pnpm run build-all && pnpm run pkg-all",
-    "dev-gui": "concurrently 'esbuild --watch --bundle --sourcemap --target=es6 --platform=node --format=iife --outfile=nwjs-out/bundle.js src/gui.ts' 'nw-sdk nwjs-out'"
+    "dev-gui": "concurrently 'esbuild --watch --bundle --sourcemap --target=es6 --platform=node --format=cjs --outfile=nwjs-out/main-bundle.js src/gui-main.ts' 'esbuild --external:./main-bundle.js --watch --bundle --sourcemap --target=es6 --platform=browser --format=iife --outfile=nwjs-out/renderer-bundle.js src/gui-renderer.ts' 'cd nwjs-out; nw-sdk .'"
   },
   "files": [
     "lib"
