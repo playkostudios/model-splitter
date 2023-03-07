@@ -25,17 +25,21 @@
             <label for="embed-textures-input" class="expand">Embed textures</label>
             <input type="checkbox" id="embed-textures-input" />
         </div>
+        <div class="input-row">
+            <label for="default-texture-size-input" class="expand">Default texture size</label>
+            <input type="text" id="default-texture-size-input" value="keep" />
+        </div>
         <p>Levels of detail:</p>
         <fieldset>
             <legend><button id="add-lod-button">Add LOD</button></legend>
             <p id="lod-list-help">No LODs added yet. Click "Add LOD"</p>
             <div id="lod-list"></div>
         </fieldset>
-        <button id="toggle-text-output-button">Show text output</button>
-        <pre id="text-output" style="display: none"></pre>
-        <div class="center-align-row">
+        <div class="right-align-row">
+            <button id="toggle-text-output-button">Show text output</button>
             <button id="split-button">Split model</button>
         </div>
+        <pre id="text-output" style="display: none"></pre>
     </div>
     <script src="renderer-bundle.js"></script>
 </body>

@@ -45,6 +45,7 @@
   "devDependencies": {
     "@types/gm": "^1.25.0",
     "@types/node": "^18.14.6",
+    "@types/node-notifier": "^8.0.2",
     "@types/nw.js": "^0.13.16",
     "babylonjs-gltf2interface": "^5.49.0",
     "cesium": "^1.103.0",
@@ -53,6 +54,7 @@
     "gltf-pipeline": "^4.0.2",
     "gltfpack": "^0.18.0",
     "gm": "^1.25.0",
+    "node-notifier": "^10.0.1",
     "pkg": "^5.8.0",
     "shx": "^0.3.4",
     "typescript": "^4.9.5"

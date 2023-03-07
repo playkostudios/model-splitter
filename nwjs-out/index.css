@@ -3,7 +3,7 @@
     flex-direction: column;
 }
 
-.input-row {
+.input-row, .right-align-row {
     display: flex;
     flex-direction: row;
 }
@@ -16,10 +16,8 @@
     display: none;
 }
 
-.center-align-row {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
+.right-align-row {
+    justify-content: end;
 }
 
 .error {

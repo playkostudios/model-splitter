@@ -1,7 +1,9 @@
 import type { ResizeOption } from 'gm';
 import type { default as _SplitModel, LODConfigList, PackedResizeOption } from './lib';
+import type { notify as _notify } from 'node-notifier';
 
 type SplitModel = typeof _SplitModel;
+type Notify = typeof _notify;
 
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
     // WARN this fails fast
@@ -80,7 +82,44 @@ function reorderLODRow(lodList: HTMLDivElement, lodListHelp: HTMLParagraphElemen
     updateLODRows(lodList, lodListHelp);
 }
 
-async function startRenderer(splitModel: SplitModel, main: HTMLElement): Promise<void> {
+function log(textOutput: HTMLPreElement, ...messages: Array<unknown>) {
+    const newlinePrefix = textOutput.textContent === '' ? '' : '\n';
+    const timestamp = new Date().toISOString();
+    textOutput.textContent += `${newlinePrefix}[${timestamp}] ${messages.join(' ')}`;
+}
+
+function parseTextureSize(input: HTMLInputElement) {
+    let texSizeStr = input.value;
+    let texSize: PackedResizeOption | null = null;
+    if (texSizeStr !== 'default' && texSizeStr !== 'keep') {
+        let option: ResizeOption = '!';
+        if (texSizeStr.endsWith('%')) {
+            option = '%';
+            texSizeStr = texSizeStr.substring(0, texSizeStr.length - 1);
+        }
+
+        const parts = texSizeStr.split(/[x,]/);
+        if (parts.length <= 0 || parts.length > 2) {
+            throw new Error(`Invalid texture size (${input.value})`);
+        }
+
+        const partsNum = new Array<number>();
+        for (const part of parts) {
+            const num = Number(part);
+            if (isNaN(num) || !isFinite(num) || num <= 0) {
+                throw new Error(`Invalid texture size (${input.value})`);
+            }
+
+            partsNum.push(num);
+        }
+
+        texSize = [partsNum[0], parts.length === 2 ? partsNum[1] : partsNum[0], option];
+    }
+
+    return texSize;
+}
+
+async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLElement): Promise<void> {
     // get elements
     const inputModelPicker = getElement<HTMLInputElement>('input-model-picker');
     const inputModelInput = getElement<HTMLInputElement>('input-model-input');
@@ -91,6 +130,8 @@ async function startRenderer(splitModel: SplitModel, main: HTMLElement): Promise
     const outputFolderButton = getElement<HTMLButtonElement>('output-folder-button');
 
     const embedTexturesInput = getElement<HTMLInputElement>('embed-textures-input');
+
+    const defaultTextureSizeInput = getElement<HTMLInputElement>('default-texture-size-input');
 
     const addLodButton = getElement<HTMLButtonElement>('add-lod-button');
     const lodListHelp = getElement<HTMLParagraphElement>('lod-list-help');
@@ -104,6 +145,7 @@ async function startRenderer(splitModel: SplitModel, main: HTMLElement): Promise
     // add event listeners
     splitButton.addEventListener('click', async () => {
         splitButton.disabled = true;
+        log(textOutput, `Splitting model...`);
 
         try {
             // parse inputs
@@ -119,52 +161,34 @@ async function startRenderer(splitModel: SplitModel, main: HTMLElement): Promise
 
             const embedTextures = embedTexturesInput.checked;
 
-            if (lodList.children.length === 1) {
+            if (lodList.children.length === 0) {
                 throw new Error('Nothing to do; no LODs added');
             }
 
+            const defaultTexSize = parseTextureSize(defaultTextureSizeInput);
+
             const lods: LODConfigList = [];
             for (const lodRow of lodList.children) {
+                const textureSize = lodRow.children[7] as HTMLInputElement;
+                const texSize = parseTextureSize(textureSize);
+
                 const meshQuality = lodRow.children[5] as HTMLInputElement;
                 const lodRatioStr = meshQuality.value;
                 const lodRatio = Number(lodRatioStr.substring(0, lodRatioStr.length - 1));
-
-                const textureSize = lodRow.children[7] as HTMLInputElement;
-                let texSizeStr = textureSize.value;
-                let texSize: PackedResizeOption | null = null;
-                if (texSizeStr !== 'default') {
-                    let option: ResizeOption = '!';
-                    if (texSizeStr.endsWith('%')) {
-                        option = '%';
-                        texSizeStr = texSizeStr.substring(0, texSizeStr.length - 1);
-                    }
-
-                    const parts = texSizeStr.split(',');
-                    if (parts.length <= 0 || parts.length > 2) {
-                        throw new Error(`Invalid texture size (${textureSize.value})`);
-                    }
-
-                    const partsNum = new Array<number>();
-                    for (const part of parts) {
-                        const num = Number(part);
-                        if (isNaN(num) || !isFinite(num) || num <= 0) {
-                            throw new Error(`Invalid texture size (${textureSize.value})`);
-                        }
-
-                        partsNum.push(num);
-                    }
-
-                    texSize = [partsNum[0], parts.length === 2 ? partsNum[1] : partsNum[0], option];
-                }
 
                 lods.push([lodRatio, texSize]);
             }
 
             // split model
-            await splitModel(inputPath, outputPath, lods, embedTextures);
+            await splitModel(inputPath, outputPath, lods, embedTextures, defaultTexSize);
+            log(textOutput, 'Done splitting model');
+            notify({
+                title: 'model-splitter',
+                message: 'Done splitting model'
+            });
         } catch(err) {
             toggleTextOutput(toggleTextOutputButton, textOutput, true);
-            textOutput.textContent = `${err.message ?? err}`;
+            log(textOutput, err.message ?? err);
         } finally {
             splitButton.disabled = false;
         }
@@ -257,22 +281,24 @@ async function startRenderer(splitModel: SplitModel, main: HTMLElement): Promise
     // remove loading message and show UI
     loadPara.parentElement?.removeChild(loadPara);
     main.style.display = '';
+    log(textOutput, 'Initialised model-splitter GUI');
 }
 
 async function setupTool() {
     try {
         const main = getElement('main');
 
-        // setup splitModel function
+        // load splitModel and notify functions
         let splitModel: SplitModel;
+        let notify: Notify;
         try {
-            splitModel = require('./main-bundle.js');
+            ({ splitModel, notify } = require('./main-bundle.js'));
         } catch(err) {
             throw new Error(`Error importing library;\n${err}`);
         }
 
         // start renderer
-        await startRenderer(splitModel, main);
+        await startRenderer(splitModel, notify, main);
     } catch(err) {
         loadPara.textContent = `Failed to load tool: ${err.message ?? err}`;
         loadPara.className = 'error';
