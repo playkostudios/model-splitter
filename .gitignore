@@ -12,4 +12,7 @@ pnpm-lock.yaml
 /lib/
 /pkgs/
 .editor/
-/dist/
+/nwjs-out/*
+!/nwjs-out/index.css
+!/nwjs-out/index.html
+!/nwjs-out/package.json
