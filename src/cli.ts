@@ -1,7 +1,7 @@
 import { basename } from 'node:path';
 import splitModel from './lib';
 
-import type { LODConfigList, PackedResizeOption } from './lib';
+import type { LODConfigList, PackedResizeOption, DefaultablePackedResizeOption } from './lib';
 
 function parseResizeArg(arg: string): PackedResizeOption {
     if (arg.endsWith('%')) {
@@ -46,7 +46,7 @@ Options:
 // running from CLI. parse arguments
 let inputPath: string | null = null;
 let outputFolder: string | null = null;
-let defaultResizeOpt: PackedResizeOption | null = null;
+let defaultResizeOpt: PackedResizeOption = 'keep';
 let force = false;
 let embedTextures = false;
 const lods: LODConfigList = [];
@@ -87,7 +87,7 @@ try {
                 }
             }
 
-            let resizeOpt: PackedResizeOption | null = null;
+            let resizeOpt: DefaultablePackedResizeOption = 'default';
             if (parts[1] !== '' && parts[1] !== undefined) {
                 resizeOpt = parseResizeArg(parts[1]);
             }

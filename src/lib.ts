@@ -9,10 +9,12 @@ import gm from 'gm';
 import type { IGLTF, INode, ITexture, IImage, IMaterial, MaterialAlphaMode } from 'babylonjs-gltf2interface';
 import type { ResizeOption } from 'gm';
 
-export type PackedResizeOption = [width: number, height: number, type?: ResizeOption];
+export type ConcreteResizeOption = [width: number, height: number, type?: ResizeOption];
+export type PackedResizeOption = ConcreteResizeOption | 'keep';
+export type DefaultablePackedResizeOption = PackedResizeOption | 'default';
 export type SeparateResources = Record<string, Buffer>;
 export type MeshMap = Array<[nodePath: Array<string>, materialID: number]>;
-export type LODConfigList = Array<[ meshLODRatio: number, textureResizeOpt: PackedResizeOption | null ]>;
+export type LODConfigList = Array<[ meshLODRatio: number, textureResizeOpt: DefaultablePackedResizeOption ]>;
 
 export interface Metadata {
     meshMap?: MeshMap,
@@ -30,7 +32,7 @@ export interface LOD {
 
 export interface SplitModelOptions {
     embedTextures?: boolean,
-    defaultResizeOpt?: PackedResizeOption | null,
+    defaultResizeOpt?: PackedResizeOption,
     force?: boolean;
 };
 
@@ -75,7 +77,7 @@ function separateTextures(separateResources: Record<string, Buffer>, inTextureLi
     }
 }
 
-function downscaleTexture(inPath: string, outPath: string, resizeOpt: PackedResizeOption): Promise<void> {
+function downscaleTexture(inPath: string, outPath: string, resizeOpt: ConcreteResizeOption): Promise<void> {
     return new Promise((resolve, reject) => {
         gm(inPath).resize(...resizeOpt).write(outPath, e => e ? reject(e) : resolve());
     })
@@ -225,7 +227,7 @@ function assertFreeFile(filePath: string) {
 async function _splitModel(tempOutFolder: string, inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
     // parse options
     let embedTextures = options.embedTextures ?? false;
-    let defaultResizeOpt: PackedResizeOption | null = options.defaultResizeOpt ?? null;
+    let defaultResizeOpt: PackedResizeOption = options.defaultResizeOpt ?? 'keep';
     let force = options.force ?? false;
 
     // make output folder if needed, or verify that it's a folder
@@ -259,11 +261,11 @@ async function _splitModel(tempOutFolder: string, inputModelPath: string, output
     }
 
     // calculate effective texture resizing for each LOD
-    const scaledTextures = new Array<PackedResizeOption | null>;
+    const scaledTextures = new Array<PackedResizeOption>;
     const texGroupMap = new Array<number>();
     for (let i = 0; i < lods.length; i++) {
         const lod = lods[i];
-        if (lod[1] === null) {
+        if (lod[1] === 'default') {
             lod[1] = defaultResizeOpt;
         }
 
@@ -348,7 +350,7 @@ async function _splitModel(tempOutFolder: string, inputModelPath: string, output
             const inPath = textureList[j][1];
             const outPath = texGroup[j][0];
 
-            if (resizeOpt === null) {
+            if (resizeOpt === 'keep') {
                 copyFileSync(inPath, outPath);
             } else {
                 await downscaleTexture(inPath, outPath, resizeOpt);

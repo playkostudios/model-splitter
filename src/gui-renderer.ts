@@ -1,5 +1,6 @@
-import type { ResizeOption } from 'gm';
-import type { default as _SplitModel, LODConfigList, PackedResizeOption, ModelSplitterError, CollisionError } from './lib';
+import { parseTextureSize } from './common';
+
+import type { default as _SplitModel, LODConfigList, ModelSplitterError, CollisionError } from './lib';
 import type { notify as _notify } from 'node-notifier';
 
 type SplitModel = typeof _SplitModel;
@@ -105,37 +106,6 @@ function log(textOutput: HTMLPreElement, ...messages: Array<unknown>) {
     textOutput.textContent += `${newlinePrefix}[${timestamp}] ${messages.join(' ')}`;
 }
 
-function parseTextureSize(input: HTMLInputElement) {
-    let texSizeStr = input.value;
-    let texSize: PackedResizeOption | null = null;
-    if (texSizeStr !== 'default' && texSizeStr !== 'keep') {
-        let option: ResizeOption = '!';
-        if (texSizeStr.endsWith('%')) {
-            option = '%';
-            texSizeStr = texSizeStr.substring(0, texSizeStr.length - 1);
-        }
-
-        const parts = texSizeStr.split(/[x,]/);
-        if (parts.length <= 0 || parts.length > 2) {
-            throw new Error(`Invalid texture size (${input.value})`);
-        }
-
-        const partsNum = new Array<number>();
-        for (const part of parts) {
-            const num = Number(part);
-            if (isNaN(num) || !isFinite(num) || num <= 0) {
-                throw new Error(`Invalid texture size (${input.value})`);
-            }
-
-            partsNum.push(num);
-        }
-
-        texSize = [partsNum[0], parts.length === 2 ? partsNum[1] : partsNum[0], option];
-    }
-
-    return texSize;
-}
-
 async function showModal(question: string, isQuestion: boolean): Promise<boolean> {
     // TODO use html
     if (isQuestion) {
@@ -195,12 +165,12 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
                 throw new Error('Nothing to do; no LODs added');
             }
 
-            const defaultResizeOpt = parseTextureSize(defaultTextureSizeInput);
+            const defaultResizeOpt = parseTextureSize(defaultTextureSizeInput.value, false);
 
             const lods: LODConfigList = [];
             for (const lodRow of lodList.children) {
                 const textureSize = lodRow.children[7] as HTMLInputElement;
-                const texSize = parseTextureSize(textureSize);
+                const texSize = parseTextureSize(textureSize.value, true);
 
                 const meshQuality = lodRow.children[5] as HTMLInputElement;
                 const lodRatioStr = meshQuality.value;
