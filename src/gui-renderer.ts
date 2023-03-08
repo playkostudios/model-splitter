@@ -65,13 +65,13 @@ function updateLODRows(lodList: HTMLDivElement, lodListHelp: HTMLParagraphElemen
         const parts = row.children;
 
         // update LOD ID
-        parts[0].textContent = `LOD${i} - `;
+        parts[3].textContent = `LOD${i}`;
 
         // disable up button if at top
-        (parts[1] as HTMLButtonElement).disabled = (i === 0);
+        (parts[0] as HTMLButtonElement).disabled = (i === 0);
 
         // disable down button if at top
-        (parts[2] as HTMLButtonElement).disabled = (i === (rows.length - 1));
+        (parts[1] as HTMLButtonElement).disabled = (i === (rows.length - 1));
     }
 
     // show help if no lods present
@@ -107,13 +107,19 @@ function log(textOutput: HTMLPreElement, ...messages: Array<unknown>) {
 }
 
 async function showModal(question: string, isQuestion: boolean): Promise<boolean> {
-    // TODO use html
     if (isQuestion) {
         return confirm(question);
     } else {
         alert(question);
         return true;
     }
+}
+
+function makeIconButton(iconSrc: string): HTMLImageElement {
+    const img = document.createElement('img');
+    img.src = iconSrc;
+    img.className = 'icon-button';
+    return img;
 }
 
 async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLElement): Promise<void> {
@@ -131,6 +137,7 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
     const forceInput = getElement<HTMLInputElement>('force-input');
 
     const defaultTextureSizeInput = getElement<HTMLInputElement>('default-texture-size-input');
+    let lastValidDefaultTextureSize = defaultTextureSizeInput.value;
 
     const addLodButton = getElement<HTMLButtonElement>('add-lod-button');
     const lodListHelp = getElement<HTMLParagraphElement>('lod-list-help');
@@ -142,6 +149,16 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
     const splitButton = getElement<HTMLButtonElement>('split-button');
 
     // add event listeners
+    defaultTextureSizeInput.addEventListener('change', () => {
+        // validate texture size. switch to old value if new value is invalid
+        try {
+            parseTextureSize(defaultTextureSizeInput.value, false);
+            lastValidDefaultTextureSize = defaultTextureSizeInput.value;
+        } catch(err) {
+            defaultTextureSizeInput.value = lastValidDefaultTextureSize;
+        }
+    });
+
     splitButton.addEventListener('click', async () => {
         splitButton.disabled = true;
         log(textOutput, `Splitting model...`);
@@ -208,6 +225,15 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
         } catch(err) {
             toggleTextOutput(toggleTextOutputButton, textOutput, true);
             log(textOutput, err.message ?? err);
+
+            showModal('Failed to split model', false);
+
+            if (!document.hasFocus()) {
+                notify({
+                    title: 'model-splitter',
+                    message: 'Failed to split model'
+                });
+            }
         } finally {
             splitButton.disabled = false;
         }
@@ -230,21 +256,18 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
         const meshQualityID = `mesh-quality-${idNum}`;
         const textureSizeID = `texture-size-${idNum}`;
 
-        const label = document.createElement('span');
-        label.textContent = `LOD${lodList.children.length} - `;
-        lodRow.appendChild(label);
-
-        const upButton = document.createElement('button');
-        upButton.textContent = '^';
+        const upButton = makeIconButton('up-icon.svg');
         lodRow.appendChild(upButton);
 
-        const downButton = document.createElement('button');
-        downButton.textContent = 'v';
+        const downButton = makeIconButton('down-icon.svg');
         lodRow.appendChild(downButton);
 
-        const removeButton = document.createElement('button');
-        removeButton.textContent = 'X';
+        const removeButton = makeIconButton('remove-icon.svg');
         lodRow.appendChild(removeButton);
+
+        const label = document.createElement('span');
+        label.textContent = `LOD${lodList.children.length}`;
+        lodRow.appendChild(label);
 
         const meshQualityLabel = document.createElement('label');
         meshQualityLabel.textContent = 'Mesh quality:';
@@ -267,6 +290,18 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
         textureSize.id = textureSizeID;
         textureSize.value = 'default';
         lodRow.appendChild(textureSize);
+
+        let lastValidTextureSize = textureSize.value;
+        textureSize.addEventListener('change', () => {
+            // validate texture size. switch to old value if new value is
+            // invalid
+            try {
+                parseTextureSize(textureSize.value, true);
+                lastValidTextureSize = textureSize.value;
+            } catch(err) {
+                textureSize.value = lastValidTextureSize;
+            }
+        });
 
         upButton.addEventListener('click', () => reorderLODRow(lodList, lodListHelp, lodRow, -1));
         downButton.addEventListener('click', () => reorderLODRow(lodList, lodListHelp, lodRow, 2));

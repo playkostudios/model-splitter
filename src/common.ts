@@ -32,6 +32,10 @@ export function parseTextureSize(inStr: string, allowDefault: boolean): Defaulta
                 throw new Error(`Invalid texture size (${inStr})`);
             }
 
+            if (option === '!' && num !== Math.trunc(num)) {
+                throw new Error(`Invalid texture size (${inStr})`);
+            }
+
             partsNum.push(num);
         }
 

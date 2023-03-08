@@ -1,9 +1,30 @@
 #main {
     display: flex;
     flex-direction: column;
+    font-family: system-ui;
 }
 
-.input-row, .right-align-row {
+p {
+    margin: 0;
+}
+
+#main, button, input {
+    font-size: 1rem;
+}
+
+#main > :not(:first-child) {
+    margin-top: 8px;
+}
+
+.space-below {
+    margin-bottom: 8px;
+}
+
+.picker-input-row > :nth-child(n+2), .input-row > :not(:first-child), .right-align-row > :not(:first-child) {
+    margin-left: 4px;
+}
+
+.picker-input-row, .input-row, .right-align-row {
     display: flex;
     flex-direction: row;
 }
@@ -23,4 +44,55 @@
 .error {
     color: red;
     font-weight: bold;
+}
+
+p, label {
+    user-select: none;
+}
+
+fieldset, pre {
+    border: 2px groove rgb(192, 192, 192);
+}
+
+pre {
+    max-width: 100%;
+    box-sizing: border-box;
+    width: 100%;
+    overflow-x: auto;
+}
+
+.lod-row > :nth-child(5), .lod-row > :nth-child(7) {
+    margin-left: 8px;
+    margin-right: 4px;
+}
+
+.lod-row > :nth-child(4) {
+    margin-left: 8px;
+    font-weight: bold;
+}
+
+.lod-row > :nth-child(4)::after {
+    content: " -";
+    user-select: none;
+    margin-right: 8px;
+    font-weight: initial;
+}
+
+.lod-row {
+    display: flex;
+    margin-bottom: 4px;
+}
+
+.lod-row > label {
+    flex: 1;
+    text-align: right;
+}
+
+.icon-button {
+    width: 24px;
+    height: 24px;
+}
+
+.icon-button:hover {
+    filter: brightness(80%);
 }

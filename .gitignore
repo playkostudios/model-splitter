@@ -16,3 +16,4 @@ pnpm-lock.yaml
 !/nwjs-out/index.css
 !/nwjs-out/index.html
 !/nwjs-out/package.json
+!/nwjs-out/icon.png

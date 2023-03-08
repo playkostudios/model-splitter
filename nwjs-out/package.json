@@ -2,5 +2,19 @@
   "name": "model-splitter-gui",
   "main": "index.html",
   "packageManager": "pnpm@7.29.0",
-  "nodejs": true
+  "nodejs": true,
+  "window": {
+    "id": "model-splitter-gui",
+    "title": "Model Splitter GUI",
+    "width": 900,
+    "height": 500,
+    "icon": "icon.png",
+    "min_width": 900,
+    "min_height": 500,
+    "resizable": true
+  },
+  "webkit": {
+    "double_tap_to_zoom_enabled": false,
+    "plugin": false
+  }
 }

@@ -10,13 +10,13 @@
     <p id="loading-msg">Loading...</p>
     <div id="main" style="display: none">
         <p>Input model:</p>
-        <div class="input-row">
+        <div class="picker-input-row">
             <input type="file" id="input-model-picker" class="hidden" />
             <input type="text" id="input-model-input" class="expand" />
             <button id="input-model-button">Pick...</button>
         </div>
         <p>Output folder:</p>
-        <div class="input-row">
+        <div class="picker-input-row">
             <input type="file" id="output-folder-picker" class="hidden" nwdirectory nwdirectorydesc="Pick output folder..." />
             <input type="text" id="output-folder-input" class="expand" />
             <button id="output-folder-button">Pick...</button>
@@ -33,9 +33,11 @@
             <label for="default-texture-size-input" class="expand">Default texture size</label>
             <input type="text" id="default-texture-size-input" value="keep" />
         </div>
-        <p>Levels of detail:</p>
         <fieldset>
-            <legend><button id="add-lod-button">Add LOD</button></legend>
+            <legend>Levels of detail:</legend>
+            <div class="space-below" class="right-align-row">
+                <button id="add-lod-button">Add new LOD</button>
+            </div>
             <p id="lod-list-help">No LODs added yet. Click "Add LOD"</p>
             <div id="lod-list"></div>
         </fieldset>
