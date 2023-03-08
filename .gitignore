@@ -17,3 +17,11 @@ pnpm-lock.yaml
 !/nwjs-out/index.html
 !/nwjs-out/package.json
 !/nwjs-out/icon.png
+!/nwjs-out/down-icon.svg
+!/nwjs-out/up-icon.svg
+!/nwjs-out/remove-icon.svg
+/cache
+/nwjs-pkg-linux
+/nwjs-pkg-win
+/model-splitter-gui-linux.zip
+/model-splitter-gui-win.zip
