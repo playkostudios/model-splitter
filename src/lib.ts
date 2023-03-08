@@ -1,8 +1,9 @@
 const { gltfToGlb, glbToGltf, processGltf } = require('gltf-pipeline');
 const gltfpack = require('gltfpack');
 
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, statSync } from 'node:fs';
-import { basename, extname, resolve as resolvePath } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, statSync, existsSync, mkdtempSync } from 'node:fs';
+import { basename, extname, resolve as resolvePath, join as joinPath } from 'node:path';
+import { tmpdir } from 'node:os';
 import gm from 'gm';
 
 import type { IGLTF, INode, ITexture, IImage, IMaterial, MaterialAlphaMode } from 'babylonjs-gltf2interface';
@@ -11,19 +12,47 @@ import type { ResizeOption } from 'gm';
 export type PackedResizeOption = [width: number, height: number, type?: ResizeOption];
 export type SeparateResources = Record<string, Buffer>;
 export type MeshMap = Array<[nodePath: Array<string>, materialID: number]>;
+export type LODConfigList = Array<[ meshLODRatio: number, textureResizeOpt: PackedResizeOption | null ]>;
+
 export interface Metadata {
     meshMap?: MeshMap,
     materials?: Array<IMaterial>,
     textureGroups?: Array<Array<string>>,
     lods?: Array<LOD>,
 };
+
 export interface LOD {
     file: string,
     lodRatio: number,
     bytes: number,
     textureGroup?: number,
+};
+
+export interface SplitModelOptions {
+    embedTextures?: boolean,
+    defaultResizeOpt?: PackedResizeOption | null,
+    force?: boolean;
+};
+
+export class ModelSplitterError<T extends string> extends Error {
+    isModelSplitterError = true;
+
+    constructor(desc: string, public modelSplitterType: T) {
+        super(desc);
+    }
 }
-export type LODConfigList = Array<[ meshLODRatio: number, textureResizeOpt: PackedResizeOption | null ]>;
+
+export class CollisionError extends ModelSplitterError<'collision'> {
+    constructor(filePath: string) {
+        super(`File "${filePath}" already exists`, 'collision');
+    }
+}
+
+export class InvalidInputError extends ModelSplitterError<'invalid-input'> {
+    constructor(desc: string) {
+        super(`Invalid input: ${desc}`, 'invalid-input');
+    }
+}
 
 async function parseModel(inputModelPath: string): Promise<{ gltf: IGLTF, separateResources: SeparateResources }> {
     let results;
@@ -34,24 +63,16 @@ async function parseModel(inputModelPath: string): Promise<{ gltf: IGLTF, separa
         const modelFile = readFileSync(inputModelPath);
         results = await glbToGltf(modelFile, { separateTextures: true });
     } else {
-        throw new Error(`Unknown file extension for path "${inputModelPath}"`);
+        throw new InvalidInputError(`Unknown file extension for path "${inputModelPath}"`);
     }
 
     return results;
 }
 
-function separateTextures(separateResources: Record<string, Buffer>, outputFolder: string): Array<string> {
-    const textureList = [];
-    for (const relativePath in separateResources) {
-        if (separateResources.hasOwnProperty(relativePath)) {
-            const resource = separateResources[relativePath];
-            const outPath = resolvePath(outputFolder, relativePath);
-            textureList.push(outPath);
-            writeFileSync(outPath, resource);
-        }
+function separateTextures(separateResources: Record<string, Buffer>, inTextureList: Array<[relInPath: string, outPath: string]>): void {
+    for (const [ relInPath, outPath ] of inTextureList) {
+        writeFileSync(outPath, separateResources[relInPath]);
     }
-
-    return textureList;
 }
 
 function downscaleTexture(inPath: string, outPath: string, resizeOpt: PackedResizeOption): Promise<void> {
@@ -181,7 +202,7 @@ async function simplifyModel(modelBuffer: Buffer, modelOutPath: string, lodRatio
 
     if (lodRatio < 1) {
         if (lodRatio <= 0) {
-            throw new Error('LOD levels must be greater than 0');
+            throw new InvalidInputError('LOD levels must be greater than 0');
         }
 
         args.push('-si', `${lodRatio}`);
@@ -195,9 +216,38 @@ async function simplifyModel(modelBuffer: Buffer, modelOutPath: string, lodRatio
     }
 }
 
-export default async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, embedTextures = false, defaultResizeOpt: PackedResizeOption | null = null) {
-    // make output folder
-    mkdirSync(outputFolder, { recursive: true });
+function assertFreeFile(filePath: string) {
+    if (existsSync(filePath)) {
+        throw new CollisionError(filePath);
+    }
+}
+
+async function _splitModel(tempOutFolder: string, inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
+    // parse options
+    let embedTextures = options.embedTextures ?? false;
+    let defaultResizeOpt: PackedResizeOption | null = options.defaultResizeOpt ?? null;
+    let force = options.force ?? false;
+
+    // make output folder if needed, or verify that it's a folder
+    if (existsSync(outputFolder)) {
+        // verify that the output path really is a folder
+        if (!statSync(outputFolder).isDirectory()) {
+            throw new InvalidInputError(`Output path "${outputFolder}" is not a directory`);
+        }
+    } else {
+        mkdirSync(outputFolder, { recursive: true });
+        // XXX folder doesn't exist, no need to prevent file replacing
+        force = true;
+    }
+
+    // verify that input model exists
+    if (!existsSync(inputModelPath)) {
+        throw new InvalidInputError(`Input path "${inputModelPath}" does not exist`);
+    }
+
+    if (!statSync(inputModelPath).isFile()) {
+        throw new InvalidInputError(`Input path "${inputModelPath}" is not a file`);
+    }
 
     // parse model
     const results = await parseModel(inputModelPath);
@@ -239,17 +289,64 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
         results.separateResources = makeFriendlyTextureNames(modelName, results.separateResources, textures, images);
     }
 
+    // generate output paths
+    const metadataOutPath = resolvePath(outputFolder, `${modelName}.metadata.json`);
+
+    const lodOutPaths = new Array<[outName: string, outPath: string]>();
+    for (let i = 0; i < lods.length; i++) {
+        const outName = `${modelName}.LOD${i}.glb`;
+        lodOutPaths.push([ outName, resolvePath(outputFolder, outName) ]);
+    }
+
+    const textureList = new Array<[relInPath: string, outPath: string]>();
+    for (const relativePath of Object.getOwnPropertyNames(results.separateResources)) {
+        const outPath = resolvePath(tempOutFolder, relativePath);
+        textureList.push([ relativePath, outPath ]);
+    }
+
+    const texOutFolder = embedTextures ? tempOutFolder : outputFolder;
+    const texGroups = new Array<Array<[outPath: string, outBasename: string]>>();
+    for (let i = 0; i < scaledTextures.length; i++) {
+        const texGroup = new Array<[outPath: string, outBasename: string]>();
+
+        for (const [origRelInPath, _inPath] of textureList) {
+            const ext = extname(origRelInPath);
+            const outPath = resolvePath(texOutFolder, `${origRelInPath.substring(0, origRelInPath.length - ext.length)}.SCALE${i}${ext}`);
+            texGroup.push([ outPath, basename(outPath) ]);
+        }
+
+        texGroups.push(texGroup);
+    }
+
+    // verify that there's no file collisions
+    if (!force) {
+        assertFreeFile(metadataOutPath);
+
+        for (const [_outName, outPath] of lodOutPaths) {
+            assertFreeFile(outPath);
+        }
+
+        for (const [_outName, outPath] of textureList) {
+            assertFreeFile(outPath);
+        }
+
+        for (const texGroup of texGroups) {
+            for (const [outPath, _outBasename] of texGroup) {
+                assertFreeFile(outPath);
+            }
+        }
+    }
+
     // resize textures and convert metadata
-    const textureList = separateTextures(results.separateResources, outputFolder);
-    const texGroups = [];
+    separateTextures(results.separateResources, textureList);
+    const jMax = textureList.length;
     for (let i = 0; i < scaledTextures.length; i++) {
         const resizeOpt = scaledTextures[i];
-        const texGroup = [];
+        const texGroup = texGroups[i];
 
-        for (const inPath of textureList) {
-            const ext = extname(inPath);
-            const outPath = `${inPath.substring(0, inPath.length - ext.length)}.SCALE${i}${ext}`;
-            texGroup.push(basename(outPath));
+        for (let j = 0; j < jMax; j++) {
+            const inPath = textureList[j][1];
+            const outPath = texGroup[j][0];
 
             if (resizeOpt === null) {
                 copyFileSync(inPath, outPath);
@@ -257,16 +354,25 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
                 await downscaleTexture(inPath, outPath, resizeOpt);
             }
         }
-
-        texGroups.push(texGroup);
     }
 
     if (!embedTextures) {
-        metadata.textureGroups = texGroups;
+        const bareTexGroups = new Array<Array<string>>();
+        for (const texGroup of texGroups) {
+            const bareTexGroup = new Array<string>();
+
+            for (const [_outPath, outBasename] of texGroup) {
+                bareTexGroup.push(outBasename);
+            }
+
+            bareTexGroups.push(bareTexGroup);
+        }
+
+        metadata.textureGroups = bareTexGroups;
     }
 
     // delete input textures
-    for (const inPath of textureList) {
+    for (const [_origRelInPath, inPath] of textureList) {
         rmSync(inPath);
     }
 
@@ -288,7 +394,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
 
             for (let i = 0; i < texGroup.length; i++) {
                 // convert texture to buffer
-                const texFileName = texGroup[i];
+                const texFileName = texGroup[i][1];
 
                 const bufferIdx = texGroupModel.buffers.length;
                 const texBuffer = readFileSync(resolvePath(outputFolder, texFileName));
@@ -318,17 +424,9 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             texGroupModels.push(glbResults.glb);
         }
 
-        // delete textures
-        for (const texGroup of texGroups) {
-            for (const texturePath of texGroup) {
-                rmSync(resolvePath(outputFolder, texturePath));
-            }
-        }
-
         // simplify model of each texture group
         for (let i = 0; i < lods.length; i++) {
-            const outName = `${modelName}.LOD${i}.glb`;
-            const outPath = resolvePath(outputFolder, outName);
+            const [outName, outPath] = lodOutPaths[i];
             const lodRatio = lods[i][0];
             await simplifyModel(texGroupModels[texGroupMap[i]], outPath, lodRatio);
 
@@ -344,8 +442,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
         const glbModel = glbResults.glb;
 
         for (let i = 0; i < lods.length; i++) {
-            const outName = `${modelName}.LOD${i}.glb`;
-            const outPath = resolvePath(outputFolder, outName);
+            const [outName, outPath] = lodOutPaths[i];
             const lodRatio = lods[i][0];
             await simplifyModel(glbModel, outPath, lodRatio);
 
@@ -359,5 +456,16 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
     }
 
     // write metadata
-    writeFileSync(resolvePath(outputFolder, `${modelName}.metadata.json`), JSON.stringify(metadata));
+    writeFileSync(metadataOutPath, JSON.stringify(metadata));
+}
+
+export default async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options?: SplitModelOptions) {
+    // make temporary folder. automatically removed on exit
+    const tempOutFolder = mkdtempSync(joinPath(tmpdir(), 'model-splitter-'));
+
+    try {
+        return await _splitModel(tempOutFolder, inputModelPath, outputFolder, lods, options);
+    } finally {
+        rmSync(tempOutFolder, { recursive: true, force: true });
+    }
 }

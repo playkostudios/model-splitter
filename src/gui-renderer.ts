@@ -1,5 +1,5 @@
 import type { ResizeOption } from 'gm';
-import type { default as _SplitModel, LODConfigList, PackedResizeOption } from './lib';
+import type { default as _SplitModel, LODConfigList, PackedResizeOption, ModelSplitterError, CollisionError } from './lib';
 import type { notify as _notify } from 'node-notifier';
 
 type SplitModel = typeof _SplitModel;
@@ -13,6 +13,23 @@ function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
     }
 
     return elem as T;
+}
+
+function assertCollisionError(err: unknown): asserts err is CollisionError {
+    if (typeof err !== 'object') {
+        throw err;
+    }
+
+    if (!(err as ModelSplitterError<string>).isModelSplitterError) {
+        console.warn('isModelSplitterError is false')
+        throw err;
+    }
+
+    const msErr = err as ModelSplitterError<string>;
+    if (msErr.modelSplitterType !== 'collision') {
+        console.warn(`modelSplitterType is ${msErr.modelSplitterType}`)
+        throw err;
+    }
 }
 
 const loadPara = getElement('loading-msg');
@@ -119,6 +136,16 @@ function parseTextureSize(input: HTMLInputElement) {
     return texSize;
 }
 
+async function showModal(question: string, isQuestion: boolean): Promise<boolean> {
+    // TODO use html
+    if (isQuestion) {
+        return confirm(question);
+    } else {
+        alert(question);
+        return true;
+    }
+}
+
 async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLElement): Promise<void> {
     // get elements
     const inputModelPicker = getElement<HTMLInputElement>('input-model-picker');
@@ -130,6 +157,8 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
     const outputFolderButton = getElement<HTMLButtonElement>('output-folder-button');
 
     const embedTexturesInput = getElement<HTMLInputElement>('embed-textures-input');
+
+    const forceInput = getElement<HTMLInputElement>('force-input');
 
     const defaultTextureSizeInput = getElement<HTMLInputElement>('default-texture-size-input');
 
@@ -159,13 +188,14 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
                 throw new Error('No output folder specified');
             }
 
+            const force = forceInput.checked;
             const embedTextures = embedTexturesInput.checked;
 
             if (lodList.children.length === 0) {
                 throw new Error('Nothing to do; no LODs added');
             }
 
-            const defaultTexSize = parseTextureSize(defaultTextureSizeInput);
+            const defaultResizeOpt = parseTextureSize(defaultTextureSizeInput);
 
             const lods: LODConfigList = [];
             for (const lodRow of lodList.children) {
@@ -180,12 +210,31 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
             }
 
             // split model
-            await splitModel(inputPath, outputPath, lods, embedTextures, defaultTexSize);
+            try {
+                await splitModel(inputPath, outputPath, lods, {
+                    embedTextures, defaultResizeOpt, force
+                });
+            } catch(err: unknown) {
+                assertCollisionError(err);
+
+                if (await showModal('Some existing files will be replaced! Run anyway?', true)) {
+                    await splitModel(inputPath, outputPath, lods, {
+                        embedTextures, defaultResizeOpt, force: true
+                    });
+                } else {
+                    throw err;
+                }
+            }
+
             log(textOutput, 'Done splitting model');
-            notify({
-                title: 'model-splitter',
-                message: 'Done splitting model'
-            });
+            showModal('Done splitting model', false);
+
+            if (!document.hasFocus()) {
+                notify({
+                    title: 'model-splitter',
+                    message: 'Done splitting model'
+                });
+            }
         } catch(err) {
             toggleTextOutput(toggleTextOutputButton, textOutput, true);
             log(textOutput, err.message ?? err);

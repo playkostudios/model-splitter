@@ -36,16 +36,18 @@ ${execName} model.glb output 1 0.75:50% 0.5:25% 0.25:12.5%
 Options:
 - <input file>: The model file to split into LODs
 - <output folder>: The folder to put the split model into
+- <lod simplification ratio>[:<texture percentage or target side length>]: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture option is equivalent to "--texture-size" but only applies to this LOD
+- --force: Replace existing files. This flag is not set by default, meaning that if a file needs to be replaced the tool will throw an error
 - --embed-textures: Force each LOD model to have embedded textures instead of external textures
-- --texture-size <percentage or target side length>: The texture size to use for each generated LOD if it's not specified in the LOD arguments
-- <lod simplification ratio>[:<texture percentage or target side length>]: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture option is equivalent to "--texture-size" but only applies to this LOD`
+- --texture-size <percentage or target side length>: The texture size to use for each generated LOD if it's not specified in the LOD arguments`
     );
 }
 
 // running from CLI. parse arguments
 let inputPath: string | null = null;
 let outputFolder: string | null = null;
-let resizeOpts: PackedResizeOption | null = null;
+let defaultResizeOpt: PackedResizeOption | null = null;
+let force = false;
 let embedTextures = false;
 const lods: LODConfigList = [];
 
@@ -60,13 +62,15 @@ try {
             outputFolder = arg;
         } else if (expectResizeOpt) {
             expectResizeOpt = false;
-            resizeOpts = parseResizeArg(arg);
+            defaultResizeOpt = parseResizeArg(arg);
         } else if (arg === '--texture-size') {
-            if (resizeOpts !== null) {
+            if (defaultResizeOpt !== null) {
                 throw new Error('--texture-size can only be specified once');
             }
 
             expectResizeOpt = true;
+        } else if (arg === '--force') {
+            force = false;
         } else if (arg === '--embed-textures') {
             embedTextures = true;
         } else {
@@ -106,7 +110,9 @@ try {
 }
 
 try {
-    splitModel(inputPath, outputFolder, lods, embedTextures, resizeOpts);
+    splitModel(inputPath, outputFolder, lods, {
+        embedTextures, defaultResizeOpt, force
+    });
 } catch(e) {
     console.error('Error occurred while splitting model:', e);
     process.exit(2);
