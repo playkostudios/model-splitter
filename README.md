@@ -37,3 +37,14 @@ LOD level and a metadata file, however, the model files aren't generated yet.
 Use `model-splitter` with one of your model files before running the project,
 with the output to the project's `static` folder. LOD level and metadata file
 URL can be specified in the `model-loader` component in the editor.
+
+## Installing on Windows
+
+Download a windows binary from the
+[releases tab](https://github.com/playkostudios/model-splitter/releases/). If
+using the GUI version, extract the zip (`model-splitter-gui-win.zip`) and run
+`model-splitter-gui.exe`.
+
+Note that GraphicsMagick needs to be installed if texture resizing is done. To
+install GraphicsMagick, follow the instructions in the
+[official website](http://www.graphicsmagick.org/download.html).
