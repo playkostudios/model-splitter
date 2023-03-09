@@ -1,7 +1,16 @@
 # model-splitter
 
 Splits a model into multiple models with different LOD levels and downscales
-textures.
+textures. Textures can be embedded in the model, or stored separately alongside
+a metadata JSON file, which needs to be parsed with a custom parser.
+
+There are 2 versions of the tool:
+- CLI: run the tool from the terminal. Useful for automating LOD generation in scripts
+- GUI: run the tool from a graphical user interface. Useful if you want to generate LODs for a small amount of models manually, or don't like CLI
+
+The tool can also be included as a library.
+
+## CLI
 
 Usage:
 ```
@@ -21,9 +30,10 @@ model-splitter model.glb output 1 0.75:50% 0.5:25% 0.25:12.5%
 Options:
 - `<input file>`: The model file to split into LODs
 - `<output folder>`: The folder to put the split model into
+- `<lod simplification ratio>[:<texture percentage or target side length>]`: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture option is equivalent to "--texture-size" but only applies to this LOD
+- `--force`: Replace existing files. This flag is not set by default, meaning that if a file needs to be replaced the tool will throw an error
 - `--embed-textures`: Force each LOD model to have embedded textures instead of external textures
 - `--texture-size <percentage or target side length>`: The texture size to use for each generated LOD if it's not specified in the LOD arguments
-- `<lod simplification ratio>[:<texture percentage or target side length>]`: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture option is equivalent to "--texture-size" but only applies to this LOD
 
 Note that, since this is a node.js CLI tool, you may need to use
 `npx model-splitter (...)`, instead of just `model-splitter (...)`. If running
