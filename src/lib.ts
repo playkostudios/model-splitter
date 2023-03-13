@@ -445,8 +445,14 @@ async function _splitModel(tempOutFolder: string, inputModelPath: string, output
         // simplify model of each texture group
         for (let i = 0; i < lods.length; i++) {
             const [outName, outPath] = lodOutPaths[i];
-            const lodRatio = lods[i][0];
-            await simplifyModel(texGroupModels[texGroupMap[i]], outPath, lodRatio, keepSceneHierarchy, noMaterialMerging, logger);
+            const lod = lods[i];
+            const lodRatio = lod[0];
+            await simplifyModel(
+                texGroupModels[texGroupMap[i]], outPath, lodRatio,
+                lod[2] ?? defaultKeepSceneHierarchy,
+                lod[3] ?? defaultNoMaterialMerging,
+                logger
+            );
 
             metadata.lods.push({
                 file: outName,
@@ -461,8 +467,14 @@ async function _splitModel(tempOutFolder: string, inputModelPath: string, output
 
         for (let i = 0; i < lods.length; i++) {
             const [outName, outPath] = lodOutPaths[i];
-            const lodRatio = lods[i][0];
-            await simplifyModel(glbModel, outPath, lodRatio, keepSceneHierarchy, noMaterialMerging, logger);
+            const lod = lods[i];
+            const lodRatio = lod[0];
+            await simplifyModel(
+                glbModel, outPath, lodRatio,
+                lod[2] ?? defaultKeepSceneHierarchy,
+                lod[3] ?? defaultNoMaterialMerging,
+                logger
+            );
 
             metadata.lods.push({
                 file: outName,

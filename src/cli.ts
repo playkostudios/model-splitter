@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import splitModel from './lib';
+import splitModel, { CollisionError, InvalidInputError } from './lib';
 
 import type { LODConfigList, PackedResizeOption, DefaultablePackedResizeOption } from './lib';
 
@@ -47,127 +47,140 @@ Options:
     );
 }
 
-// running from CLI. parse arguments
-let inputPath: string | null = null;
-let outputFolder: string | null = null;
-let defaultResizeOpt: PackedResizeOption = 'keep';
-let force = false;
-let embedTextures = false;
-let defaultKeepSceneHierarchy = false;
-let defaultNoMaterialMerging = false;
-let textureSizeSpecified = false;
-const lods: LODConfigList = [];
+async function main() {
+    // running from CLI. parse arguments
+    let inputPath: string | null = null;
+    let outputFolder: string | null = null;
+    let defaultResizeOpt: PackedResizeOption = 'keep';
+    let force = false;
+    let embedTextures = false;
+    let defaultKeepSceneHierarchy = false;
+    let defaultNoMaterialMerging = false;
+    let textureSizeSpecified = false;
+    const lods: LODConfigList = [];
 
-try {
-    const cliArgs = process.argv.slice(2);
-    let expectResizeOpt = false;
+    try {
+        const cliArgs = process.argv.slice(2);
+        let expectResizeOpt = false;
 
-    for (const arg of cliArgs) {
-        if (inputPath === null) {
-            inputPath = arg;
-        } else if (outputFolder === null) {
-            outputFolder = arg;
-        } else if (expectResizeOpt) {
-            expectResizeOpt = false;
-            defaultResizeOpt = parseResizeArg(arg);
-        } else if (arg === '--texture-size') {
-            if (textureSizeSpecified) {
-                throw new Error('--texture-size can only be specified once');
-            }
-
-            expectResizeOpt = true;
-            textureSizeSpecified = true;
-        } else if (arg === '--force') {
-            force = false;
-        } else if (arg === '--embed-textures') {
-            embedTextures = true;
-        } else if (arg === '--keep-scene-hierarchy') {
-            defaultKeepSceneHierarchy = true;
-        } else if (arg === '--no-material-merging') {
-            defaultNoMaterialMerging = true;
-        } else {
-            const parts = arg.split(':');
-            if (parts.length > 2) {
-                throw new Error('LOD arguments can have at most 2 parts');
-            }
-
-            let lodRatio = 1;
-            let resizeOpt: DefaultablePackedResizeOption = 'default';
-            let keepSceneHierarchy: boolean | null = null;
-            let noMaterialMerging: boolean | null = null;
-            let focus = 0;
-
-            for (const partUntrimmed of parts) {
-                const part = partUntrimmed.trim();
-
-                if (part === 'optimize-scene-hierarchy') {
-                    if (keepSceneHierarchy !== null) {
-                        throw new Error('Scene hierarchy LOD option can only be specified once');
-                    }
-
-                    keepSceneHierarchy = false;
-                } else if (part === 'keep-scene-hierarchy') {
-                    if (keepSceneHierarchy !== null) {
-                        throw new Error('Scene hierarchy LOD option can only be specified once');
-                    }
-
-                    keepSceneHierarchy = true;
-                } else if (part === 'merge-materials') {
-                    if (noMaterialMerging !== null) {
-                        throw new Error('Material merging LOD option can only be specified once');
-                    }
-
-                    noMaterialMerging = false;
-                } else if (part === 'no-material-merging') {
-                    if (noMaterialMerging !== null) {
-                        throw new Error('Material merging LOD option can only be specified once');
-                    }
-
-                    noMaterialMerging = true;
-                } else if (focus === 0) {
-                    focus++;
-
-                    if (part !== '') {
-                        lodRatio = Number(part);
-                        if (isNaN(lodRatio) || lodRatio <= 0 || lodRatio > 1) {
-                            throw new Error('Invalid LOD simplification ratio. Must be a number > 0 and <= 1');
-                        }
-                    }
-                } else if (focus === 1) {
-                    focus++;
-
-                    if (part !== '') {
-                        resizeOpt = parseResizeArg(part);
-                    }
-                } else {
-                    throw new Error('Too many unnamed LOD options');
+        for (const arg of cliArgs) {
+            if (inputPath === null) {
+                inputPath = arg;
+            } else if (outputFolder === null) {
+                outputFolder = arg;
+            } else if (expectResizeOpt) {
+                expectResizeOpt = false;
+                defaultResizeOpt = parseResizeArg(arg);
+            } else if (arg === '--texture-size') {
+                if (textureSizeSpecified) {
+                    throw new Error('--texture-size can only be specified once');
                 }
+
+                expectResizeOpt = true;
+                textureSizeSpecified = true;
+            } else if (arg === '--force') {
+                force = false;
+            } else if (arg === '--embed-textures') {
+                embedTextures = true;
+            } else if (arg === '--keep-scene-hierarchy') {
+                defaultKeepSceneHierarchy = true;
+            } else if (arg === '--no-material-merging') {
+                defaultNoMaterialMerging = true;
+            } else {
+                const parts = arg.split(':');
+                if (parts.length > 2) {
+                    throw new Error('LOD arguments can have at most 2 parts');
+                }
+
+                let lodRatio = 1;
+                let resizeOpt: DefaultablePackedResizeOption = 'default';
+                let keepSceneHierarchy: boolean | null = null;
+                let noMaterialMerging: boolean | null = null;
+                let focus = 0;
+
+                for (const partUntrimmed of parts) {
+                    const part = partUntrimmed.trim();
+
+                    if (part === 'optimize-scene-hierarchy') {
+                        if (keepSceneHierarchy !== null) {
+                            throw new Error('Scene hierarchy LOD option can only be specified once');
+                        }
+
+                        keepSceneHierarchy = false;
+                    } else if (part === 'keep-scene-hierarchy') {
+                        if (keepSceneHierarchy !== null) {
+                            throw new Error('Scene hierarchy LOD option can only be specified once');
+                        }
+
+                        keepSceneHierarchy = true;
+                    } else if (part === 'merge-materials') {
+                        if (noMaterialMerging !== null) {
+                            throw new Error('Material merging LOD option can only be specified once');
+                        }
+
+                        noMaterialMerging = false;
+                    } else if (part === 'no-material-merging') {
+                        if (noMaterialMerging !== null) {
+                            throw new Error('Material merging LOD option can only be specified once');
+                        }
+
+                        noMaterialMerging = true;
+                    } else if (focus === 0) {
+                        focus++;
+
+                        if (part !== '') {
+                            lodRatio = Number(part);
+                            if (isNaN(lodRatio) || lodRatio <= 0 || lodRatio > 1) {
+                                throw new Error('Invalid LOD simplification ratio. Must be a number > 0 and <= 1');
+                            }
+                        }
+                    } else if (focus === 1) {
+                        focus++;
+
+                        if (part !== '') {
+                            resizeOpt = parseResizeArg(part);
+                        }
+                    } else {
+                        throw new Error('Too many unnamed LOD options');
+                    }
+                }
+
+
+                lods.push([lodRatio, resizeOpt, keepSceneHierarchy, noMaterialMerging]);
             }
+        }
 
+        if (expectResizeOpt) {
+            throw new Error('Expected texture size');
+        } else if (inputPath === null) {
+            throw new Error('Input path not specified');
+        } else if (outputFolder === null) {
+            throw new Error('Output folder not specified');
+        }
+    } catch (err) {
+        console.error(err.message);
+        printHelp(process.argv[1]);
+        process.exit(1);
+    }
 
-            lods.push([lodRatio, resizeOpt, keepSceneHierarchy, noMaterialMerging]);
+    try {
+        await splitModel(inputPath, outputFolder, lods, {
+            embedTextures, defaultResizeOpt, force, defaultKeepSceneHierarchy,
+            defaultNoMaterialMerging,
+        });
+    } catch(err) {
+        if (err instanceof CollisionError) {
+            console.error(`Error occurred while splitting model: ${err.message}\nIf you wish to replace this file, run the tool with the "--force" option`);
+            process.exit(4);
+        } else if (err instanceof InvalidInputError) {
+            console.error(`Error occurred while splitting model: ${err.message}`);
+            printHelp(process.argv[1]);
+            process.exit(1);
+        } else {
+            console.error('Error occurred while splitting model:', err);
+            process.exit(2);
         }
     }
-
-    if (expectResizeOpt) {
-        throw new Error('Expected texture size');
-    } else if (inputPath === null) {
-        throw new Error('Input path not specified');
-    } else if (outputFolder === null) {
-        throw new Error('Output folder not specified');
-    }
-} catch (e) {
-    console.error(e);
-    printHelp(process.argv[1]);
-    process.exit(1);
 }
 
-try {
-    splitModel(inputPath, outputFolder, lods, {
-        embedTextures, defaultResizeOpt, force, defaultKeepSceneHierarchy,
-        defaultNoMaterialMerging,
-    });
-} catch(e) {
-    console.error('Error occurred while splitting model:', e);
-    process.exit(2);
-}
+main();
