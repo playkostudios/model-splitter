@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 import splitModel, { CollisionError, InvalidInputError } from './lib';
+import { version } from '../package.json';
 
 import type { LODConfigList, PackedResizeOption, DefaultablePackedResizeOption } from './lib';
 
@@ -23,7 +24,9 @@ function parseResizeArg(arg: string): PackedResizeOption {
 
 function printHelp(execPath: string) {
     const execName = basename(execPath);
-    console.log(`
+    console.log(`\
+models-splitter ${version}
+
 Usage:
 ${execName} <input file> <output folder> [--embed-textures] [--texture-size <percentage or target side length>] <lod 1 simplification ratio>[:<texture percentage or target side length>] <lod 2 simplification ratio>[:<texture percentage or target side length>] ...
 
@@ -43,7 +46,9 @@ Options:
 - --embed-textures: Force each LOD model to have embedded textures instead of external textures
 - --keep-scene-hierarchy: Don't optimize the scene hierarchy; keeps the same hierarchy instead of merging nodes, at the expense of higher draw calls. Can be overridden per LOD
 - --no-material-merging: Don't merge materials and keep material names. Can be overridden per LOD
-- --texture-size <percentage or target side length>: The texture size to use for each generated LOD if it's not specified in the LOD arguments`
+- --texture-size <percentage or target side length>: The texture size to use for each generated LOD if it's not specified in the LOD arguments
+- --version: Print version and exit
+- --help: Print help and exit`
     );
 }
 
@@ -71,6 +76,12 @@ async function main() {
             } else if (expectResizeOpt) {
                 expectResizeOpt = false;
                 defaultResizeOpt = parseResizeArg(arg);
+            } else if (arg === '--help') {
+                printHelp(process.argv[1]);
+                process.exit(0);
+            } else if (arg === '--version') {
+                console.log(version);
+                process.exit(0);
             } else if (arg === '--texture-size') {
                 if (textureSizeSpecified) {
                     throw new Error('--texture-size can only be specified once');

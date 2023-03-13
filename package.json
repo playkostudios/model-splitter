@@ -1,6 +1,6 @@
 {
   "name": "model-splitter",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Splits a model into multiple models with different LOD levels and downscales textures",
   "main": "lib/index.cjs.js",
   "exports": "./lib/index.cjs.js",
