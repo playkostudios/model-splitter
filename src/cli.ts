@@ -32,13 +32,17 @@ Example usage:
 ${execName} model.glb output 1 0.9 0.75 0.5 0.25 0.125 --texture-size 25%
 - Split a model named "model.glb" into the folder "output" with 4 LOD levels (100%, 75%, 50%, and 25% mesh kept) and a texture size of 100%, 50%, 25% and 12.5% respectively
 ${execName} model.glb output 1 0.75:50% 0.5:25% 0.25:12.5%
+- Split a model named "model.glb" into the folder "output" with 4 LOD levels (100%, 75%, 50%, and 25% mesh kept), a texture size of 100%, 50%, 25% and 12.5% respectively, and keep the scene hierarchy, except for the lowest LOD
+${execName} model.glb output 1 0.75:50% 0.5:25% 0.25:12.5%:optimize-scene-hierarchy --keep-scene-hierarchy
 
 Options:
 - <input file>: The model file to split into LODs
 - <output folder>: The folder to put the split model into
-- <lod simplification ratio>[:<texture percentage or target side length>]: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture option is equivalent to "--texture-size" but only applies to this LOD
+- <lod simplification ratio>[:<texture percentage or target side length>][:optimize-scene-hierarchy][:keep-scene-hierarchy][:merge-materials][:no-material-merging]: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture, scene hierarchy, and material options are equivalent to (or counteract), respectively, "--texture-size", "--keep-scene-hierarchy" and "no-material-merging" but only apply to this LOD
 - --force: Replace existing files. This flag is not set by default, meaning that if a file needs to be replaced the tool will throw an error
 - --embed-textures: Force each LOD model to have embedded textures instead of external textures
+- --keep-scene-hierarchy: Don't optimize the scene hierarchy; keeps the same hierarchy instead of merging nodes, at the expense of higher draw calls. Can be overridden per LOD
+- --no-material-merging: Don't merge materials and keep material names. Can be overridden per LOD
 - --texture-size <percentage or target side length>: The texture size to use for each generated LOD if it's not specified in the LOD arguments`
     );
 }
@@ -49,6 +53,8 @@ let outputFolder: string | null = null;
 let defaultResizeOpt: PackedResizeOption = 'keep';
 let force = false;
 let embedTextures = false;
+let defaultKeepSceneHierarchy = false;
+let defaultNoMaterialMerging = false;
 let textureSizeSpecified = false;
 const lods: LODConfigList = [];
 
@@ -75,6 +81,10 @@ try {
             force = false;
         } else if (arg === '--embed-textures') {
             embedTextures = true;
+        } else if (arg === '--keep-scene-hierarchy') {
+            defaultKeepSceneHierarchy = true;
+        } else if (arg === '--no-material-merging') {
+            defaultNoMaterialMerging = true;
         } else {
             const parts = arg.split(':');
             if (parts.length > 2) {
@@ -82,19 +92,60 @@ try {
             }
 
             let lodRatio = 1;
-            if (parts[0] !== '') {
-                lodRatio = Number(parts[0]);
-                if (isNaN(lodRatio) || lodRatio <= 0 || lodRatio > 1) {
-                    throw new Error('Invalid LOD simplification ratio. Must be a number > 0 and <= 1');
+            let resizeOpt: DefaultablePackedResizeOption = 'default';
+            let keepSceneHierarchy: boolean | null = null;
+            let noMaterialMerging: boolean | null = null;
+            let focus = 0;
+
+            for (const partUntrimmed of parts) {
+                const part = partUntrimmed.trim();
+
+                if (part === 'optimize-scene-hierarchy') {
+                    if (keepSceneHierarchy !== null) {
+                        throw new Error('Scene hierarchy LOD option can only be specified once');
+                    }
+
+                    keepSceneHierarchy = false;
+                } else if (part === 'keep-scene-hierarchy') {
+                    if (keepSceneHierarchy !== null) {
+                        throw new Error('Scene hierarchy LOD option can only be specified once');
+                    }
+
+                    keepSceneHierarchy = true;
+                } else if (part === 'merge-materials') {
+                    if (noMaterialMerging !== null) {
+                        throw new Error('Material merging LOD option can only be specified once');
+                    }
+
+                    noMaterialMerging = false;
+                } else if (part === 'no-material-merging') {
+                    if (noMaterialMerging !== null) {
+                        throw new Error('Material merging LOD option can only be specified once');
+                    }
+
+                    noMaterialMerging = true;
+                } else if (focus === 0) {
+                    focus++;
+
+                    if (part !== '') {
+                        lodRatio = Number(part);
+                        if (isNaN(lodRatio) || lodRatio <= 0 || lodRatio > 1) {
+                            throw new Error('Invalid LOD simplification ratio. Must be a number > 0 and <= 1');
+                        }
+                    }
+                } else if (focus === 1) {
+                    focus++;
+
+                    if (part !== '') {
+                        resizeOpt = parseResizeArg(part);
+                    }
+                } else {
+                    throw new Error('Too many unnamed LOD options');
                 }
             }
 
-            let resizeOpt: DefaultablePackedResizeOption = 'default';
-            if (parts[1] !== '' && parts[1] !== undefined) {
-                resizeOpt = parseResizeArg(parts[1]);
-            }
 
-            lods.push([lodRatio, resizeOpt]);
+            lods.push([lodRatio, resizeOpt, keepSceneHierarchy, noMaterialMerging]);
         }
     }
 
@@ -113,7 +164,8 @@ try {
 
 try {
     splitModel(inputPath, outputFolder, lods, {
-        embedTextures, defaultResizeOpt, force
+        embedTextures, defaultResizeOpt, force, defaultKeepSceneHierarchy,
+        defaultNoMaterialMerging,
     });
 } catch(e) {
     console.error('Error occurred while splitting model:', e);

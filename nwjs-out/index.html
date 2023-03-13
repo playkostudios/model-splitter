@@ -30,6 +30,14 @@
             <input type="checkbox" id="force-input" />
         </div>
         <div class="input-row">
+            <label for="keep-scene-hierarchy-input" class="expand">Keep scene hierarchy by default</label>
+            <input type="checkbox" id="keep-scene-hierarchy-input" />
+        </div>
+        <div class="input-row">
+            <label for="no-material-merging-input" class="expand">Disable material merging by default</label>
+            <input type="checkbox" id="no-material-merging-input" />
+        </div>
+        <div class="input-row">
             <label for="default-texture-size-input" class="expand">Default texture size</label>
             <input type="text" id="default-texture-size-input" value="keep" />
         </div>
@@ -39,7 +47,13 @@
                 <button id="add-lod-button">Add new LOD</button>
             </div>
             <p id="lod-list-help">No LODs added yet. Click "Add LOD"</p>
-            <div id="lod-list"></div>
+            <div id="lod-list" style="display: none">
+                <span class="lod-list-header">Name</span>
+                <span class="lod-list-header">Mesh quality</span>
+                <span class="lod-list-header">Texture resize</span>
+                <span class="lod-list-header">Scene hierarchy</span>
+                <span class="lod-list-header">Material merging</span>
+            </div>
         </fieldset>
         <div class="right-align-row">
             <button id="clear-text-output-button">Clear text output</button>

@@ -8,10 +8,6 @@ p {
     margin: 0;
 }
 
-#main, button, input {
-    font-size: 1rem;
-}
-
 #main > :not(:first-child) {
     margin-top: 8px;
 }
@@ -61,40 +57,17 @@ fieldset, #text-output {
     overflow-x: auto;
 }
 
-.lod-row > :nth-child(5), .lod-row > :nth-child(7) {
-    margin-left: 8px;
-    margin-right: 4px;
-}
-
-.lod-row > :nth-child(4) {
-    margin-left: 8px;
-    font-weight: bold;
-}
-
-.lod-row > :nth-child(4)::after {
-    content: " -";
-    user-select: none;
-    margin-right: 8px;
-    font-weight: initial;
-}
-
-.lod-row {
-    display: flex;
-    margin-bottom: 4px;
-}
-
-.lod-row > label {
-    flex: 1;
-    text-align: right;
-}
-
 .icon-button {
     width: 24px;
     height: 24px;
 }
 
-.icon-button:hover {
+.icon-button:hover:not(.disabled-icon-button) {
     filter: brightness(80%);
+}
+
+.disabled-icon-button {
+    filter: brightness(125%);
 }
 
 span.msg-timestamp {
@@ -120,4 +93,18 @@ p.msg-warn {
 
 p.msg-error {
     color: red;
+}
+
+#lod-list {
+    display: grid;
+    grid-template-columns: 24px 24px 24px auto auto auto auto auto;
+    gap: 4px;
+}
+
+.lod-list-header {
+    font-weight: bold;
+}
+
+.lod-list-header:first-child {
+    grid-column-start: 4;
 }

@@ -16,7 +16,7 @@ export type PackedResizeOption = ConcreteResizeOption | 'keep';
 export type DefaultablePackedResizeOption = PackedResizeOption | 'default';
 export type SeparateResources = Record<string, Buffer>;
 export type MeshMap = Array<[nodePath: Array<string>, materialID: number]>;
-export type LODConfigList = Array<[ meshLODRatio: number, textureResizeOpt: DefaultablePackedResizeOption ]>;
+export type LODConfigList = Array<[ meshLODRatio: number, textureResizeOpt: DefaultablePackedResizeOption, keepSceneHierarchy?: boolean | null, noMaterialMerging?: boolean | null ]>;
 
 export interface Metadata {
     meshMap?: MeshMap,
@@ -33,11 +33,11 @@ export interface LOD {
 };
 
 export interface SplitModelOptions {
-    embedTextures?: boolean,
-    defaultResizeOpt?: PackedResizeOption,
+    embedTextures?: boolean;
+    defaultResizeOpt?: PackedResizeOption;
+    defaultKeepSceneHierarchy?: boolean;
+    defaultNoMaterialMerging?: boolean;
     force?: boolean;
-    keepSceneHierarchy?: boolean;
-    noMaterialMerging?: boolean;
     logger?: Logger;
 };
 
@@ -241,9 +241,9 @@ async function _splitModel(tempOutFolder: string, inputModelPath: string, output
     // parse options
     let embedTextures = options.embedTextures ?? false;
     let defaultResizeOpt: PackedResizeOption = options.defaultResizeOpt ?? 'keep';
+    const defaultKeepSceneHierarchy = options.defaultKeepSceneHierarchy ?? false;
+    const defaultNoMaterialMerging = options.defaultNoMaterialMerging ?? false;
     let force = options.force ?? false;
-    const keepSceneHierarchy = options.keepSceneHierarchy ?? false;
-    const noMaterialMerging = options.noMaterialMerging ?? false;
     const logger = options.logger ?? new ConsoleLogger();
 
     // make output folder if needed, or verify that it's a folder
