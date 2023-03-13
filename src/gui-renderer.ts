@@ -1,9 +1,10 @@
 import { parseTextureSize } from './common';
 
-import type { default as _SplitModel, LODConfigList, ModelSplitterError, CollisionError } from './lib';
+import type { LODConfigList, ModelSplitterError, CollisionError } from './lib';
 import type { notify as _notify } from 'node-notifier';
+import type { WrappedSplitModel } from './WrappedSplitModel';
+import type { ObjectLoggerMessage, ObjectLoggerMessageType } from './Logger';
 
-type SplitModel = typeof _SplitModel;
 type Notify = typeof _notify;
 
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -33,7 +34,7 @@ function assertCollisionError(err: unknown): asserts err is CollisionError {
 
 const loadPara = getElement('loading-msg');
 
-function toggleTextOutput(button: HTMLButtonElement, content: HTMLPreElement, show: boolean | null) {
+function toggleTextOutput(button: HTMLButtonElement, content: HTMLDivElement, show: boolean | null) {
     if (show === null) {
         show = content.style.display === 'none';
     }
@@ -98,10 +99,34 @@ function reorderLODRow(lodList: HTMLDivElement, lodListHelp: HTMLParagraphElemen
     updateLODRows(lodList, lodListHelp);
 }
 
-function log(textOutput: HTMLPreElement, ...messages: Array<unknown>) {
-    const newlinePrefix = textOutput.textContent === '' ? '' : '\n';
-    const timestamp = new Date().toISOString();
-    textOutput.textContent += `${newlinePrefix}[${timestamp}] ${messages.join(' ')}`;
+function log(textOutput: HTMLDivElement, mType: ObjectLoggerMessageType, timestamp: number | null, ...messages: Array<unknown>) {
+    if (mType === 'errorString') {
+        mType = 'error';
+    }
+
+    let timestampStr: string;
+    if (timestamp === null) {
+        timestampStr = new Date().toISOString();
+    } else {
+        timestampStr = new Date(timestamp).toISOString();
+    }
+
+    const msgTimestamp = document.createElement('span');
+    msgTimestamp.className = 'msg-timestamp';
+    msgTimestamp.textContent = timestampStr;
+
+    const msgContainer = document.createElement('p');
+    msgContainer.className = `msg-${mType}`;
+    msgContainer.appendChild(msgTimestamp);
+    msgContainer.append(messages.join(' '));
+
+    textOutput.appendChild(msgContainer);
+}
+
+function logObj(textOutput: HTMLDivElement, messages: Array<ObjectLoggerMessage>) {
+    for (const message of messages) {
+        log(textOutput, message.type, message.time, message.data);
+    }
 }
 
 async function showModal(question: string, isQuestion: boolean): Promise<boolean> {
@@ -120,7 +145,7 @@ function makeIconButton(iconSrc: string): HTMLImageElement {
     return img;
 }
 
-async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLElement): Promise<void> {
+async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main: HTMLElement): Promise<void> {
     // get elements
     const inputModelPicker = getElement<HTMLInputElement>('input-model-picker');
     const inputModelInput = getElement<HTMLInputElement>('input-model-input');
@@ -141,8 +166,9 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
     const lodListHelp = getElement<HTMLParagraphElement>('lod-list-help');
     const lodList = getElement<HTMLDivElement>('lod-list');
 
+    const clearTextOutputButton = getElement<HTMLButtonElement>('clear-text-output-button');
     const toggleTextOutputButton = getElement<HTMLButtonElement>('toggle-text-output-button');
-    const textOutput = getElement<HTMLPreElement>('text-output');
+    const textOutput = getElement<HTMLDivElement>('text-output');
 
     const splitButton = getElement<HTMLButtonElement>('split-button');
 
@@ -159,7 +185,11 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
 
     splitButton.addEventListener('click', async () => {
         splitButton.disabled = true;
-        log(textOutput, `Splitting model...`);
+        log(textOutput, 'log', null, `Splitting model...`);
+
+        const messages = new Array<ObjectLoggerMessage>();
+        let error: unknown;
+        let hadError = false;
 
         try {
             // parse inputs
@@ -198,44 +228,58 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
             try {
                 await splitModel(inputPath, outputPath, lods, {
                     embedTextures, defaultResizeOpt, force
-                });
+                }, messages);
             } catch(err: unknown) {
                 assertCollisionError(err);
 
                 if (await showModal('Some existing files will be replaced! Run anyway?', true)) {
                     await splitModel(inputPath, outputPath, lods, {
                         embedTextures, defaultResizeOpt, force: true
-                    });
+                    }, messages);
                 } else {
                     throw err;
                 }
             }
-
-            log(textOutput, 'Done splitting model');
-            showModal('Done splitting model', false);
-
-            if (!document.hasFocus()) {
-                notify({
-                    title: 'model-splitter',
-                    message: 'Done splitting model'
-                });
-            }
         } catch(err) {
+            error = err;
+            hadError = true;
             toggleTextOutput(toggleTextOutputButton, textOutput, true);
-            log(textOutput, err.message ?? err);
-
-            showModal('Failed to split model', false);
-
-            if (!document.hasFocus()) {
-                notify({
-                    title: 'model-splitter',
-                    message: 'Failed to split model'
-                });
-            }
-        } finally {
-            splitButton.disabled = false;
         }
+
+        // output messages
+        logObj(textOutput, messages);
+
+        let message: string;
+        if (hadError) {
+            if (typeof error === 'object' && error !== null && 'message' in error) {
+                log(textOutput, 'errorString', null, error.message);
+            } else {
+                log(textOutput, 'error', null, error);
+            }
+
+            message = 'Failed to split model';
+        } else {
+            message = 'Done splitting model';
+        }
+
+        log(textOutput, 'log', null, message);
+        showModal(message, false);
+
+        if (!document.hasFocus()) {
+            notify({ title: 'model-splitter', message });
+        }
+
+        splitButton.disabled = false;
     });
+
+    clearTextOutputButton.addEventListener(
+        'click',
+        () => {
+            for (const child of Array.from(textOutput.childNodes.values())) {
+                textOutput.removeChild(child);
+            }
+        }
+    )
 
     toggleTextOutputButton.addEventListener(
         'click',
@@ -333,7 +377,7 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
     // remove loading message and show UI
     loadPara.parentElement?.removeChild(loadPara);
     main.style.display = '';
-    log(textOutput, 'Initialised model-splitter GUI');
+    log(textOutput, 'log', null, 'Initialised model-splitter GUI');
 }
 
 async function setupTool() {
@@ -341,7 +385,7 @@ async function setupTool() {
         const main = getElement('main');
 
         // load splitModel and notify functions
-        let splitModel: SplitModel;
+        let splitModel: WrappedSplitModel;
         let notify: Notify;
         try {
             ({ splitModel, notify } = require('./main-bundle.js'));

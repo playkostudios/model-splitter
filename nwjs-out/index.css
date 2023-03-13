@@ -50,11 +50,11 @@ p, label {
     user-select: none;
 }
 
-fieldset, pre {
+fieldset, #text-output {
     border: 2px groove rgb(192, 192, 192);
 }
 
-pre {
+#text-output {
     max-width: 100%;
     box-sizing: border-box;
     width: 100%;
@@ -95,4 +95,29 @@ pre {
 
 .icon-button:hover {
     filter: brightness(80%);
+}
+
+span.msg-timestamp {
+    font-weight: bold;
+}
+
+span.msg-timestamp::before {
+    content: "[";
+}
+
+span.msg-timestamp::after {
+    content: "]";
+    margin-right: 8px;
+}
+
+p.msg-debug {
+    color: darkgray;
+}
+
+p.msg-warn {
+    color: orange;
+}
+
+p.msg-error {
+    color: red;
 }

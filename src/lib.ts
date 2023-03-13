@@ -5,9 +5,11 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, statSync,
 import { basename, extname, resolve as resolvePath, join as joinPath } from 'node:path';
 import { tmpdir } from 'node:os';
 import gm from 'gm';
+import { ConsoleLogger } from './Logger';
 
 import type { IGLTF, INode, ITexture, IImage, IMaterial, MaterialAlphaMode } from 'babylonjs-gltf2interface';
 import type { ResizeOption } from 'gm';
+import type { Logger } from './Logger';
 
 export type ConcreteResizeOption = [width: number, height: number, type?: ResizeOption];
 export type PackedResizeOption = ConcreteResizeOption | 'keep';
@@ -34,6 +36,9 @@ export interface SplitModelOptions {
     embedTextures?: boolean,
     defaultResizeOpt?: PackedResizeOption,
     force?: boolean;
+    keepSceneHierarchy?: boolean;
+    noMaterialMerging?: boolean;
+    logger?: Logger;
 };
 
 export class ModelSplitterError<T extends string> extends Error {
@@ -103,7 +108,7 @@ function traverseNode(meshToNodePath: Map<number, Array<string>>, nodes: Array<I
     nodePath.pop();
 }
 
-function extractMaterials(model: IGLTF): [textures: Array<ITexture>, images: Array<IImage>, metadata: Metadata] {
+function extractMaterials(model: IGLTF, logger: Logger): [textures: Array<ITexture>, images: Array<IImage>, metadata: Metadata] {
     // map nodes to meshes; WLE can't reference meshes directly when loaded via
     // WL.scene.append, so we have to map a scene path to a mesh object
     const meshToNodePath = new Map<number, Array<string>>();
@@ -132,11 +137,11 @@ function extractMaterials(model: IGLTF): [textures: Array<ITexture>, images: Arr
             }
 
             if (materialID === null) {
-                console.warn('Mesh has no material, ignored');
+                logger.warn('Mesh has no material, ignored');
             } else {
                 const nodePath = meshToNodePath.get(i);
                 if (nodePath === undefined) {
-                    console.warn('Mesh is assigned to nodes that have no named paths, ignored');
+                    logger.warn('Mesh is assigned to nodes that have no named paths, ignored');
                 } else {
                     meshMap.push([nodePath, materialID]);
                 }
@@ -187,7 +192,7 @@ function makeFriendlyTextureNames(modelName: string, separateResources: Separate
     return newResources;
 }
 
-async function simplifyModel(modelBuffer: Buffer, modelOutPath: string, lodRatio: number) {
+async function simplifyModel(modelBuffer: Buffer, modelOutPath: string, lodRatio: number, keepSceneHierarchy: boolean, noMaterialMerging: boolean, logger: Logger) {
     const inputPath = 'argument://input-model.glb';
     const gltfpackInterface = {
         read: (filePath: string) => {
@@ -200,7 +205,15 @@ async function simplifyModel(modelBuffer: Buffer, modelOutPath: string, lodRatio
         write: writeFileSync,
     };
 
-    const args = ['-i', inputPath, '-o', modelOutPath, '-noq', '-kn', '-km'];
+    const args = ['-i', inputPath, '-o', modelOutPath, '-noq'];
+
+    if (keepSceneHierarchy) {
+        args.push('-kn');
+    }
+
+    if (noMaterialMerging) {
+        args.push('-km')
+    }
 
     if (lodRatio < 1) {
         if (lodRatio <= 0) {
@@ -209,12 +222,12 @@ async function simplifyModel(modelBuffer: Buffer, modelOutPath: string, lodRatio
 
         args.push('-si', `${lodRatio}`);
     } else if (lodRatio > 1) {
-        console.warn('Ignored LOD ratio greater than 1; treating as 1 (no simplification)');
+        logger.warn('Ignored LOD ratio greater than 1; treating as 1 (no simplification)');
     }
 
     const log = await gltfpack.pack(args, gltfpackInterface);
     if (log !== '') {
-        console.log(log);
+        logger.log(log);
     }
 }
 
@@ -229,6 +242,9 @@ async function _splitModel(tempOutFolder: string, inputModelPath: string, output
     let embedTextures = options.embedTextures ?? false;
     let defaultResizeOpt: PackedResizeOption = options.defaultResizeOpt ?? 'keep';
     let force = options.force ?? false;
+    const keepSceneHierarchy = options.keepSceneHierarchy ?? false;
+    const noMaterialMerging = options.noMaterialMerging ?? false;
+    const logger = options.logger ?? new ConsoleLogger();
 
     // make output folder if needed, or verify that it's a folder
     if (existsSync(outputFolder)) {
@@ -287,7 +303,7 @@ async function _splitModel(tempOutFolder: string, inputModelPath: string, output
         results.separateResources = makeFriendlyTextureNames(modelName, results.separateResources, results.gltf.textures, results.gltf.images);
     } else {
         let textures, images;
-        [textures, images, metadata] = extractMaterials(results.gltf);
+        [textures, images, metadata] = extractMaterials(results.gltf, logger);
         results.separateResources = makeFriendlyTextureNames(modelName, results.separateResources, textures, images);
     }
 
@@ -430,7 +446,7 @@ async function _splitModel(tempOutFolder: string, inputModelPath: string, output
         for (let i = 0; i < lods.length; i++) {
             const [outName, outPath] = lodOutPaths[i];
             const lodRatio = lods[i][0];
-            await simplifyModel(texGroupModels[texGroupMap[i]], outPath, lodRatio);
+            await simplifyModel(texGroupModels[texGroupMap[i]], outPath, lodRatio, keepSceneHierarchy, noMaterialMerging, logger);
 
             metadata.lods.push({
                 file: outName,
@@ -446,7 +462,7 @@ async function _splitModel(tempOutFolder: string, inputModelPath: string, output
         for (let i = 0; i < lods.length; i++) {
             const [outName, outPath] = lodOutPaths[i];
             const lodRatio = lods[i][0];
-            await simplifyModel(glbModel, outPath, lodRatio);
+            await simplifyModel(glbModel, outPath, lodRatio, keepSceneHierarchy, noMaterialMerging, logger);
 
             metadata.lods.push({
                 file: outName,
