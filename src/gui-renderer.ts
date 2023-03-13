@@ -22,13 +22,11 @@ function assertCollisionError(err: unknown): asserts err is CollisionError {
     }
 
     if (!(err as ModelSplitterError<string>).isModelSplitterError) {
-        console.warn('isModelSplitterError is false')
         throw err;
     }
 
     const msErr = err as ModelSplitterError<string>;
     if (msErr.modelSplitterType !== 'collision') {
-        console.warn(`modelSplitterType is ${msErr.modelSplitterType}`)
         throw err;
     }
 }
@@ -191,7 +189,7 @@ async function startRenderer(splitModel: SplitModel, notify: Notify, main: HTMLE
 
                 const meshQuality = lodRow.children[5] as HTMLInputElement;
                 const lodRatioStr = meshQuality.value;
-                const lodRatio = Number(lodRatioStr.substring(0, lodRatioStr.length - 1));
+                const lodRatio = Number(lodRatioStr.substring(0, lodRatioStr.length - 1)) / 100;
 
                 lods.push([lodRatio, texSize]);
             }

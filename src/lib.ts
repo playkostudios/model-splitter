@@ -399,7 +399,7 @@ async function _splitModel(tempOutFolder: string, inputModelPath: string, output
                 const texFileName = texGroup[i][1];
 
                 const bufferIdx = texGroupModel.buffers.length;
-                const texBuffer = readFileSync(resolvePath(outputFolder, texFileName));
+                const texBuffer = readFileSync(resolvePath(texOutFolder, texFileName));
                 const byteLength = texBuffer.byteLength;
                 texGroupModel.buffers.push({
                     name: texFileName,

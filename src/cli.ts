@@ -49,6 +49,7 @@ let outputFolder: string | null = null;
 let defaultResizeOpt: PackedResizeOption = 'keep';
 let force = false;
 let embedTextures = false;
+let textureSizeSpecified = false;
 const lods: LODConfigList = [];
 
 try {
@@ -64,11 +65,12 @@ try {
             expectResizeOpt = false;
             defaultResizeOpt = parseResizeArg(arg);
         } else if (arg === '--texture-size') {
-            if (defaultResizeOpt !== null) {
+            if (textureSizeSpecified) {
                 throw new Error('--texture-size can only be specified once');
             }
 
             expectResizeOpt = true;
+            textureSizeSpecified = true;
         } else if (arg === '--force') {
             force = false;
         } else if (arg === '--embed-textures') {
