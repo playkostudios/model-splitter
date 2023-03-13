@@ -4,7 +4,8 @@ node_modules/
 /example-project/cache/
 /example-project/static/*
 !/example-project/static/.keepme
-model.glb
+/*.glb
+/*.gltf
 *.sublime-project
 *.sublime-workspace
 package-lock.json
