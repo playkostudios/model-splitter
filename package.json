@@ -53,6 +53,7 @@
     "babylonjs-gltf2interface": "^5.49.0",
     "cesium": "^1.103.0",
     "concurrently": "^7.6.0",
+    "data-uri-to-buffer": "^4.0.1",
     "esbuild": "^0.16",
     "glob": "^8.1.0",
     "gltf-pipeline": "^4.0.2",
