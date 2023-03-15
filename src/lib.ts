@@ -1,17 +1,18 @@
-const { gltfToGlb, glbToGltf, processGltf } = require('gltf-pipeline');
+const { gltfToGlb, glbToGltf } = require('gltf-pipeline');
 const gltfpack = require('gltfpack');
 
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, statSync, existsSync, mkdtempSync } from 'node:fs';
-import { basename, extname, resolve as resolvePath, join as joinPath } from 'node:path';
-import { tmpdir } from 'node:os';
+import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync } from 'node:fs';
+import { basename, extname, resolve as resolvePath } from 'node:path';
 import gm from 'gm';
 import { ConsoleLogger } from './ConsoleLogger';
 import { createHash } from 'node:crypto';
 import { dataUriToBuffer } from 'data-uri-to-buffer';
 
-import type { IGLTF, INode, ITexture, IImage, IMaterial, MaterialAlphaMode, IBuffer } from 'babylonjs-gltf2interface';
+import type { IGLTF, IImage, IBuffer, ITextureInfo } from 'babylonjs-gltf2interface';
 import type { ResizeOption } from 'gm';
 import type { Logger } from './Logger';
+
+export const EXTENSION_NAME = 'PLAYKO_EXTERNAL_WLE_MATERIAL';
 
 export type ConcreteResizeOption = [width: number, height: number, type?: ResizeOption];
 export type PackedResizeOption = ConcreteResizeOption | 'keep';
@@ -61,137 +62,6 @@ export class InvalidInputError extends ModelSplitterError<'invalid-input'> {
     constructor(desc: string) {
         super(`Invalid input: ${desc}`, 'invalid-input');
     }
-}
-
-async function parseModel(inputModelPath: string): Promise<{ gltf: IGLTF, separateResources: SeparateResources }> {
-    let results;
-    if (inputModelPath.endsWith('.gltf')) {
-        const modelFile = JSON.parse(readFileSync(inputModelPath).toString());
-        results = await processGltf(modelFile, { separateTextures: true });
-    } else if (inputModelPath.endsWith('.glb')) {
-        const modelFile = readFileSync(inputModelPath);
-        results = await glbToGltf(modelFile, { separateTextures: true });
-    } else {
-        throw new InvalidInputError(`Unknown file extension for path "${inputModelPath}"`);
-    }
-
-    return results;
-}
-
-function separateTextures(separateResources: Record<string, Buffer>, inTextureList: Array<[relInPath: string, outPath: string]>): void {
-    for (const [ relInPath, outPath ] of inTextureList) {
-        writeFileSync(outPath, separateResources[relInPath]);
-    }
-}
-
-function downscaleTexture(inPath: string, outPath: string, resizeOpt: ConcreteResizeOption): Promise<void> {
-    return new Promise((resolve, reject) => {
-        gm(inPath).resize(...resizeOpt).write(outPath, e => e ? reject(e) : resolve());
-    })
-}
-
-function traverseNode(meshToNodePath: Map<number, Array<string>>, nodes: Array<INode>, nodePath: Array<string>, node: INode) {
-    if (!node.name) {
-        return;
-    }
-
-    nodePath.push(node.name);
-
-    if (node.mesh !== undefined && !meshToNodePath.has(node.mesh)) {
-        meshToNodePath.set(node.mesh, [...nodePath]);
-    }
-
-    if (node.children) {
-        for (const childIdx of node.children) {
-            traverseNode(meshToNodePath, nodes, nodePath, nodes[childIdx]);
-        }
-    }
-
-    nodePath.pop();
-}
-
-function extractMaterials(model: IGLTF, logger: Logger): [textures: Array<ITexture>, images: Array<IImage>, metadata: Metadata] {
-    // map nodes to meshes; WLE can't reference meshes directly when loaded via
-    // WL.scene.append, so we have to map a scene path to a mesh object
-    const meshToNodePath = new Map<number, Array<string>>();
-    const nodes = model.nodes === undefined ? [] : model.nodes;
-    if (model.scenes !== undefined) {
-        for (const scene of model.scenes) {
-            for (const rootNodeID of scene.nodes) {
-                traverseNode(meshToNodePath, nodes, [], nodes[rootNodeID]);
-            }
-        }
-    }
-
-    // remove material from mesh and map mesh to node path, replace material
-    // with bogus material
-    const meshMap: Array<[nodePath: Array<string>, materialID: number]> = [];
-    const meshes = model.meshes;
-    if (meshes) {
-        const meshCount = meshes.length;
-        for (let i = 0; i < meshCount; i++) {
-            let materialID = null;
-            for (const primitive of meshes[i].primitives) {
-                if (primitive.material !== undefined) {
-                    materialID = primitive.material;
-                    primitive.material = 0;
-                }
-            }
-
-            if (materialID === null) {
-                logger.warn('Mesh has no material, ignored');
-            } else {
-                const nodePath = meshToNodePath.get(i);
-                if (nodePath === undefined) {
-                    logger.warn('Mesh is assigned to nodes that have no named paths, ignored');
-                } else {
-                    meshMap.push([nodePath, materialID]);
-                }
-            }
-        }
-    }
-
-    // extract materials, textures and images, and remove samplers
-    delete model.samplers;
-    const textures = model.textures ?? [];
-    delete model.textures;
-    const materials = model.materials ?? [];
-    delete model.materials;
-    const images = model.images ?? [];
-    delete model.images;
-
-    // replace materials list with bogus material
-    model.materials = [
-        {
-            'pbrMetallicRoughness': {
-                'metallicFactor': 0.5,
-                'roughnessFactor': 0.5,
-                'baseColorFactor': [ 1, 1, 1, 1 ]
-            },
-            'name': 'bogus-material',
-            'emissiveFactor': [ 0, 0, 0 ],
-            'alphaMode': 'OPAQUE' as MaterialAlphaMode,
-            'doubleSided': false
-        }
-    ];
-
-    return [textures, images, { meshMap, materials }];
-}
-
-function makeFriendlyTextureNames(modelName: string, separateResources: SeparateResources, textures?: Array<ITexture>, images?: Array<IImage>): SeparateResources {
-    if (textures === undefined || images === undefined) {
-        return {};
-    }
-
-    // convert textures to friendlier format
-    const newResources: SeparateResources = {};
-    const textureCount = textures.length;
-    for (let i = 0; i < textureCount; i++) {
-        const oldURI = images[textures[i].source].uri as string;
-        newResources[`${modelName}.TEX${i}${extname(oldURI)}`] = separateResources[oldURI];
-    }
-
-    return newResources;
 }
 
 async function simplifyModel(modelBuffer: Buffer, isGLTF: boolean, lodRatio: number, keepSceneHierarchy: boolean, noMaterialMerging: boolean, logger: Logger): Promise<Uint8Array> {
@@ -256,26 +126,24 @@ function assertFreeFile(filePath: string) {
 }
 
 function deepClone<T>(val: T): T {
-    if (val !== null && typeof val === 'object') {
-        if (Array.isArray(val)) {
-            const outVal = [] as T;
-
-            for (const subVal of val) {
-                (outVal as Array<unknown>).push(deepClone(subVal));
-            }
-
-            return outVal;
-        } else {
-            const outVal: Record<string, unknown> = {};
-
-            for (const name of Object.getOwnPropertyNames(val)) {
-                outVal[name] = deepClone((val as Record<string, unknown>)[name]);
-            }
-
-            return outVal as T;
-        }
-    } else {
+    if (val === null || typeof val === 'object') {
         return val;
+    } else if (Array.isArray(val)) {
+        const outVal = [] as T;
+
+        for (const subVal of val) {
+            (outVal as Array<unknown>).push(deepClone(subVal));
+        }
+
+        return outVal;
+    } else {
+        const outVal: Record<string, unknown> = {};
+
+        for (const name of Object.getOwnPropertyNames(val)) {
+            outVal[name] = deepClone((val as Record<string, unknown>)[name]);
+        }
+
+        return outVal as T;
     }
 }
 
@@ -374,6 +242,17 @@ function resizeTexture(textures: ProcessedTextureList, origHash: string, resizeO
             }
         });
     });
+}
+
+function shiftID(origID: number, deletedIDs: Iterable<number>): number {
+    let newID = origID;
+    for (const deletedID of deletedIDs) {
+        if (origID > deletedID) {
+            newID--;
+        }
+    }
+
+    return newID;
 }
 
 export default async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
@@ -572,21 +451,23 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
         lods: []
     };
 
-    for (let i = 0; i < lodCount; i++) {
-        const [gacIdx, texResizeOpt] = lodsParsed[i];
-        const gltf = gltfs[i];
+    for (let l = 0; l < lodCount; l++) {
+        logger.debug(`starting lod ${l}`)
+        const [gacIdx, texResizeOpt] = lodsParsed[l];
+        const gltf = gltfs[l];
 
         // embed textures if needed, or move affected materials to metadata file
         // and replace original materials with dummies
         // XXX map contains buffers, then buffer views and their replacements
-        const replacedBufferViews = new Map<number, Array<[bufferViewIdx: number, content: Buffer | null, oldContentLen: number, oldContentOffset: number]>>();
+        const replacedBufferViews = new Map<number, Array<[bufferViewIdx: number, content: Buffer | null, contentHash: string, oldContentLen: number, oldContentOffset: number]>>();
         if (expectedImageCount > 0) {
             const images = gltf.images!;
-            for (let j = 0; j < expectedImageCount; j++) {
-                const [inBuf, origHash] = originalImages[j];
+            for (let i = 0; i < expectedImageCount; i++) {
+                const [inBuf, origHash] = originalImages[i];
                 const [resBuf, resHash] = await resizeTexture(textures, origHash, texResizeOpt, !embedTextures, inBuf, logger);
-                const bufferViewIdx = images[j].bufferView!;
+                const bufferViewIdx = images[i].bufferView!;
                 const bufferView = gltfFirst.bufferViews![bufferViewIdx]!;
+                logger.debug(`${bufferView}`);
                 const bufferIdx = bufferView.buffer;
                 const bufferLen = bufferView.byteLength;
                 const bufferOffset = bufferView.byteOffset ?? 0;
@@ -594,11 +475,10 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
                 let bufferViewList = replacedBufferViews.get(bufferIdx);
                 if (bufferViewList === undefined) {
                     bufferViewList = [];
-                    replacedBufferViews.set(bufferIdx, bufferViewList)
+                    replacedBufferViews.set(bufferIdx, bufferViewList);
                 }
 
-                bufferViewList.push([bufferViewIdx, embedTextures ? resBuf : null, bufferLen, bufferOffset]);
-                // TODO extract materials, map materials somehow
+                bufferViewList.push([bufferViewIdx, embedTextures ? resBuf : null, resHash, bufferLen, bufferOffset]);
             }
         }
 
@@ -618,7 +498,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             logger.debug('ranges start');
             for (let b = 0; b < bufferViewCount; b++) {
                 let found = false;
-                for (const [ob, _newContent, _oldContentLength, _oldContentOffset] of bufferViewList) {
+                for (const [ob, _newContent, _hash, _oldContentLength, _oldContentOffset] of bufferViewList) {
                     if (b === ob) {
                         found = true;
                         break;
@@ -693,7 +573,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             }
 
             const newOffsets = new Array<number>();
-            for (const [_bufferViewIdx, newContent, _oldContentLength, _oldContentOffset] of bufferViewList) {
+            for (const [_bufferViewIdx, newContent, _hash, _oldContentLength, _oldContentOffset] of bufferViewList) {
                 if (newContent) {
                     newOffsets.push(newBufSize);
                     newBufSize += newContent.byteLength;
@@ -707,7 +587,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
                 head += range[1] - range[0];
             }
 
-            for (const [_bufferViewIdx, newContent, _oldContentLength, _oldContentOffset] of bufferViewList) {
+            for (const [_bufferViewIdx, newContent, _hash, _oldContentLength, _oldContentOffset] of bufferViewList) {
                 if (newContent) {
                     newContent.copy(newBuffer, head);
                     head += newContent.byteLength;
@@ -734,7 +614,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             // update overridden bufferviews
             const bMax = bufferViewList.length;
             for (let b = 0; b < bMax; b++) {
-                const [bufferViewIdx, newContent, _oldContentLength, _oldContentOffset] = bufferViewList[b];
+                const [bufferViewIdx, newContent, _hash, _oldContentLength, _oldContentOffset] = bufferViewList[b];
                 const bufferView = gltf.bufferViews![bufferViewIdx];
                 logger.debug(`override bufferview ${bufferViewIdx}`);
 
@@ -758,8 +638,242 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             logger.debug(`buffer view ${x++}: buffer ${bufferView.buffer}, length ${bufferView.byteLength}, offset ${bufferView.byteOffset ?? 0}`);
         }
 
+        // handle external textures
+        if (!embedTextures && gltf.images) {
+            // get list of buffer views that were replaced with external
+            // textures
+            const externalBufferViews = new Map<number, string>();
+            for (const bufferViewList of replacedBufferViews.values()) {
+                for (const [bufferViewIdx, content, hash, _oldContentLength, _oldContentOffset] of bufferViewList) {
+                    if (content === null) {
+                        externalBufferViews.set(bufferViewIdx, hash);
+                        logger.debug(`marked bufferview ${bufferViewIdx} as external`);
+                    }
+                }
+            }
+
+            // remove images that use external buffer views
+            const externalImages = new Map<number, string>();
+            for (let i = gltf.images.length - 1; i >= 0; i--) {
+                const image = gltf.images[i];
+                const bufferView = image.bufferView;
+                const hash = externalBufferViews.get(bufferView!);
+                if (hash !== undefined) {
+                    gltf.images.splice(i, 1);
+                    externalImages.set(i, hash);
+                    logger.debug(`marked image ${i} as external`);
+                }
+            }
+
+            // remove textures that use external images, track depended samplers
+            // and shift image source ids
+            const externalTextures = new Map<number, string>();
+            const dependedSamplers = new Set<number>();
+            if (gltf.textures) {
+                for (let t = gltf.textures.length - 1; t >= 0; t--) {
+                    const texture = gltf.textures[t];
+                    const hash = externalImages.get(texture.source);
+
+                    if (hash !== undefined) {
+                        gltf.textures.splice(t, 1);
+                        externalTextures.set(t, hash);
+                        logger.debug(`marked texture ${t} as external`);
+                    } else {
+                        if (texture.sampler !== undefined) {
+                            dependedSamplers.add(texture.sampler);
+                        }
+
+                        texture.source = shiftID(texture.source, externalImages.keys());
+                    }
+                }
+            }
+
+            // remove, convert and track materials that use external textures
+            interface ConvertedMaterial {
+                pbr: boolean;
+                opaque: boolean;
+                normalTexture?: string,
+                albedoTexture?: string,
+                emissiveTexture?: string,
+                roughnessMetallicTexture?: string,
+                albedoFactor?: number[],
+                emissiveFactor?: number[],
+                alphaMaskThreshold?: number,
+                metallicFactor?: number,
+                roughnessFactor?: number,
+            };
+
+            const convertedMaterials = new Array<ConvertedMaterial>();
+            const convertedMaterialsMap = new Map<number, number>();
+            if (gltf.materials) {
+                for (let m = gltf.materials.length - 1; m >= 0; m--) {
+                    const material = gltf.materials[m];
+                    logger.debug(`checking material ${m}`);
+
+                    // check if material depends on an external texture and
+                    // store hash as reference in converted material
+                    let hasEmbeddedTexture = false;
+                    let hasExternalTexture = false;
+                    const texToCheck: Array<[textureName: null | 'emissiveTexture' | 'normalTexture' | 'albedoTexture' | 'roughnessMetallicTexture', textureInfo: ITextureInfo | undefined, pbrOnly: boolean]> = [
+                        [null, material.occlusionTexture, false],
+                        ['emissiveTexture', material.emissiveTexture, false],
+                        ['normalTexture', material.normalTexture, false],
+                    ];
+
+                    const pbr = material.pbrMetallicRoughness;
+                    if (pbr) {
+                        texToCheck.push(['albedoTexture', pbr.baseColorTexture, false]);
+                        texToCheck.push(['roughnessMetallicTexture', pbr.metallicRoughnessTexture, true])
+                    }
+
+                    const convertedMaterial: ConvertedMaterial = {
+                        pbr: false,
+                        opaque: true,
+                    };
+
+                    for (const [textureName, textureInfo, pbrOnly] of texToCheck) {
+                        if (textureInfo === undefined) {
+                            continue;
+                        }
+
+                        const hash = externalTextures.get(textureInfo.index);
+                        if (hash === undefined) {
+                            hasEmbeddedTexture = true;
+                            logger.debug(`found embedded texture ${textureName}`);
+
+                            // shift texture id
+                            textureInfo.index = shiftID(textureInfo.index, externalTextures.keys());
+                        } else {
+                            hasExternalTexture = true;
+                            logger.debug(`found external texture ${textureName}`);
+
+                            if (textureName !== null) {
+                                convertedMaterial[textureName] = hash;
+                            }
+
+                            if (textureInfo.texCoord !== undefined && textureInfo.texCoord !== 0) {
+                                throw new Error(`Unsupported texCoord "${textureInfo.texCoord}"; only 0 is supported`);
+                            }
+
+                            if (pbrOnly) {
+                                convertedMaterial.pbr = true;
+                            }
+                        }
+                    }
+
+                    if (!hasExternalTexture) {
+                        logger.debug(`material had no external textures`);
+                        continue;
+                    }
+
+                    if (hasEmbeddedTexture && hasExternalTexture) {
+                        throw new Error('Unexpected material with both embedded and external textures');
+                    }
+
+                    // get extra converted material data
+                    if (material.alphaMode !== undefined && material.alphaMode !== 'OPAQUE') {
+                        convertedMaterial.opaque = false;
+
+                        if (material.alphaMode === 'MASK') {
+                            convertedMaterial.alphaMaskThreshold = material.alphaCutoff ?? 0.5;
+                        }
+                    }
+
+                    if (convertedMaterial.emissiveTexture && material.emissiveFactor) {
+                        convertedMaterial.emissiveFactor = material.emissiveFactor;
+                    }
+
+                    if (pbr) {
+                        if (convertedMaterial.albedoTexture && pbr.baseColorFactor) {
+                            convertedMaterial.albedoFactor = pbr.baseColorFactor;
+                            convertedMaterial.pbr = true;
+                        }
+
+                        if (convertedMaterial.roughnessMetallicTexture) {
+                            convertedMaterial.roughnessFactor = pbr.roughnessFactor ?? 1;
+                            convertedMaterial.metallicFactor = pbr.metallicFactor ?? 1;
+                        }
+                    }
+
+                    // store converted material and remove original material
+                    convertedMaterialsMap.set(m, convertedMaterials.length);
+                    convertedMaterials.push(convertedMaterial);
+                    gltf.materials.splice(m, 1);
+                    logger.debug(`material had external textures, converted to ${convertedMaterial}`);
+                }
+            }
+
+            if (convertedMaterials.length > 0) {
+                // replace references to converted materials with custom extension
+                if (gltf.meshes) {
+                    for (const mesh of gltf.meshes) {
+                        const replacedMaterials = new Array<[primitiveIdx: number, convertedMaterialIdx: number]>();
+                        for (let p = 0; p < mesh.primitives.length; p++) {
+                            const primitive = mesh.primitives[p];
+                            if (primitive.material === undefined) {
+                                continue;
+                            }
+
+                            const cmi = convertedMaterialsMap.get(primitive.material);
+                            if (cmi === undefined) {
+                                primitive.material = shiftID(primitive.material, convertedMaterialsMap.keys());
+                            } else {
+                                replacedMaterials.push([p, cmi]);
+                                delete primitive.material;
+                            }
+                        }
+
+                        if (replacedMaterials.length > 0) {
+                            const extension = { replacedMaterials };
+
+                            if (mesh.extensions) {
+                                mesh.extensions[EXTENSION_NAME] = extension;
+                            } else {
+                                mesh.extensions = { [EXTENSION_NAME]: extension };
+                            }
+                        }
+                    }
+                }
+
+                // store depended converted materials as root custom extension
+                if (gltf.extensions) {
+                    gltf.extensions[EXTENSION_NAME] = convertedMaterials;
+                } else {
+                    gltf.extensions = { [EXTENSION_NAME]: convertedMaterials };
+                }
+
+                if (gltf.extensionsRequired) {
+                    gltf.extensionsRequired.push(EXTENSION_NAME);
+                } else {
+                    gltf.extensionsRequired = [EXTENSION_NAME];
+                }
+            }
+
+            // remove unused samplers
+            if (gltf.samplers) {
+                const deletedSamplers = new Set<number>();
+                for (let s = gltf.samplers.length - 1; s >= 0; s--) {
+                    if (!dependedSamplers.has(s)) {
+                        deletedSamplers.add(s);
+                        gltf.samplers.splice(s, 1);
+                    }
+                }
+
+                // shift sampler ids in textures
+                if (gltf.textures) {
+                    for (const texture of gltf.textures) {
+                        if (texture.sampler !== undefined) {
+                            texture.sampler = shiftID(texture.sampler, deletedSamplers);
+                        }
+                    }
+                }
+            }
+        }
+
+        logger.debug('done, converting to glb')
+
         // save as glb
-        const outName = `${modelName}.LOD${i}.glb`;
+        const outName = `${modelName}.LOD${l}.glb`;
         const outPath = resolvePath(outputFolder, outName);
 
         if (!force) {
@@ -767,7 +881,9 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
         }
 
         const outGlbBuf = (await gltfToGlb(gltf)).glb;
+        logger.debug('done converting, saving')
         writeFileSync(outPath, outGlbBuf);
+        logger.debug('done saving, writing to meta')
 
         // update metadata
         metadata.lods.push({
@@ -775,6 +891,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             lodRatio: gltfpackArgCombos[gacIdx][0],
             bytes: statSync(outPath).size
         });
+        logger.debug('done writing to meta')
     }
 
     // write non-embedded textures to final destination
@@ -800,273 +917,4 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
     }
 
     writeFileSync(outPath, JSON.stringify(metadata));
-}
-
-async function old__splitModel(tempOutFolder: string, inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
-    // parse options
-    let embedTextures = options.embedTextures ?? false;
-    let defaultResizeOpt: PackedResizeOption = options.defaultResizeOpt ?? 'keep';
-    const defaultKeepSceneHierarchy = options.defaultKeepSceneHierarchy ?? false;
-    const defaultNoMaterialMerging = options.defaultNoMaterialMerging ?? false;
-    let force = options.force ?? false;
-    const logger = options.logger ?? new ConsoleLogger();
-
-    // make output folder if needed, or verify that it's a folder
-    if (existsSync(outputFolder)) {
-        // verify that the output path really is a folder
-        if (!statSync(outputFolder).isDirectory()) {
-            throw new InvalidInputError(`Output path "${outputFolder}" is not a directory`);
-        }
-    } else {
-        mkdirSync(outputFolder, { recursive: true });
-        // XXX folder doesn't exist, no need to prevent file replacing
-        force = true;
-    }
-
-    // verify that input model exists
-    if (!existsSync(inputModelPath)) {
-        throw new InvalidInputError(`Input path "${inputModelPath}" does not exist`);
-    }
-
-    if (!statSync(inputModelPath).isFile()) {
-        throw new InvalidInputError(`Input path "${inputModelPath}" is not a file`);
-    }
-
-    // parse model
-    const results = await parseModel(inputModelPath);
-
-    let modelName = basename(inputModelPath);
-    const extLen = extname(modelName).length;
-    if (extLen > 0) {
-        modelName = modelName.substring(0, modelName.length - extLen);
-    }
-
-    // calculate effective texture resizing for each LOD
-    const scaledTextures = new Array<PackedResizeOption>;
-    const texGroupMap = new Array<number>();
-    for (let i = 0; i < lods.length; i++) {
-        const lod = lods[i];
-        if (lod[1] === 'default') {
-            lod[1] = defaultResizeOpt;
-        }
-
-        const jMax = scaledTextures.length;
-        let j = 0;
-        for (; j < jMax && scaledTextures[j] !== lod[1]; j++);
-
-        if (j === jMax) {
-            scaledTextures.push(lod[1]);
-        }
-
-        texGroupMap[i] = j;
-    }
-
-    // extract materials to metadata object if needed
-    let metadata: Metadata;
-    if (embedTextures) {
-        metadata = {};
-        results.separateResources = makeFriendlyTextureNames(modelName, results.separateResources, results.gltf.textures, results.gltf.images);
-    } else {
-        let textures, images;
-        [textures, images, metadata] = extractMaterials(results.gltf, logger);
-        results.separateResources = makeFriendlyTextureNames(modelName, results.separateResources, textures, images);
-    }
-
-    // generate output paths
-    const metadataOutPath = resolvePath(outputFolder, `${modelName}.metadata.json`);
-
-    const lodOutPaths = new Array<[outName: string, outPath: string]>();
-    for (let i = 0; i < lods.length; i++) {
-        const outName = `${modelName}.LOD${i}.glb`;
-        lodOutPaths.push([ outName, resolvePath(outputFolder, outName) ]);
-    }
-
-    const textureList = new Array<[relInPath: string, outPath: string]>();
-    for (const relativePath of Object.getOwnPropertyNames(results.separateResources)) {
-        const outPath = resolvePath(tempOutFolder, relativePath);
-        textureList.push([ relativePath, outPath ]);
-    }
-
-    const texOutFolder = embedTextures ? tempOutFolder : outputFolder;
-    const texGroups = new Array<Array<[outPath: string, outBasename: string]>>();
-    for (let i = 0; i < scaledTextures.length; i++) {
-        const texGroup = new Array<[outPath: string, outBasename: string]>();
-
-        for (const [origRelInPath, _inPath] of textureList) {
-            const ext = extname(origRelInPath);
-            const outPath = resolvePath(texOutFolder, `${origRelInPath.substring(0, origRelInPath.length - ext.length)}.SCALE${i}${ext}`);
-            texGroup.push([ outPath, basename(outPath) ]);
-        }
-
-        texGroups.push(texGroup);
-    }
-
-    // verify that there's no file collisions
-    if (!force) {
-        assertFreeFile(metadataOutPath);
-
-        for (const [_outName, outPath] of lodOutPaths) {
-            assertFreeFile(outPath);
-        }
-
-        for (const [_outName, outPath] of textureList) {
-            assertFreeFile(outPath);
-        }
-
-        for (const texGroup of texGroups) {
-            for (const [outPath, _outBasename] of texGroup) {
-                assertFreeFile(outPath);
-            }
-        }
-    }
-
-    // resize textures and convert metadata
-    separateTextures(results.separateResources, textureList);
-    const jMax = textureList.length;
-    for (let i = 0; i < scaledTextures.length; i++) {
-        const resizeOpt = scaledTextures[i];
-        const texGroup = texGroups[i];
-
-        for (let j = 0; j < jMax; j++) {
-            const inPath = textureList[j][1];
-            const outPath = texGroup[j][0];
-
-            if (resizeOpt === 'keep') {
-                copyFileSync(inPath, outPath);
-            } else {
-                await downscaleTexture(inPath, outPath, resizeOpt);
-            }
-        }
-    }
-
-    if (!embedTextures) {
-        const bareTexGroups = new Array<Array<string>>();
-        for (const texGroup of texGroups) {
-            const bareTexGroup = new Array<string>();
-
-            for (const [_outPath, outBasename] of texGroup) {
-                bareTexGroup.push(outBasename);
-            }
-
-            bareTexGroups.push(bareTexGroup);
-        }
-
-        metadata.textureGroups = bareTexGroups;
-    }
-
-    // delete input textures
-    for (const [_origRelInPath, inPath] of textureList) {
-        rmSync(inPath);
-    }
-
-    // simplify models for each LOD, add to metadata
-    metadata.lods = [];
-
-    if (embedTextures) {
-        // make gltfs for each texture group when embedding textures
-        const texGroupModels = [];
-        const origImages = results.gltf.images ?? [];
-        const origBuffers = results.gltf.buffers ?? [];
-        const origBufferViews = results.gltf.bufferViews ?? [];
-
-        for (const texGroup of texGroups) {
-            const texGroupModel = { ...results.gltf };
-            texGroupModel.images = [];
-            texGroupModel.buffers = [...origBuffers];
-            texGroupModel.bufferViews = [...origBufferViews];
-
-            for (let i = 0; i < texGroup.length; i++) {
-                // convert texture to buffer
-                const texFileName = texGroup[i][1];
-
-                const bufferIdx = texGroupModel.buffers.length;
-                const texBuffer = readFileSync(resolvePath(texOutFolder, texFileName));
-                const byteLength = texBuffer.byteLength;
-                texGroupModel.buffers.push({
-                    name: texFileName,
-                    byteLength,
-                    uri: `data:application/octet-stream;base64,${texBuffer.toString('base64')}`
-                });
-
-                const bufferViewIdx = texGroupModel.bufferViews.length;
-                texGroupModel.bufferViews.push({
-                    buffer: bufferIdx,
-                    byteOffset: 0,
-                    byteLength
-                });
-
-                const origImage = origImages[i];
-                texGroupModel.images.push({
-                    bufferView: bufferViewIdx,
-                    mimeType: origImage.mimeType,
-                    name: origImage.name
-                });
-            }
-
-            const glbResults = await gltfToGlb(texGroupModel);
-            texGroupModels.push(glbResults.glb);
-        }
-
-        // simplify model of each texture group
-        for (let i = 0; i < lods.length; i++) {
-            const [outName, outPath] = lodOutPaths[i];
-            const lod = lods[i];
-            const lodRatio = lod[0];
-            await simplifyModel(
-                texGroupModels[texGroupMap[i]], outPath, lodRatio,
-                lod[2] ?? defaultKeepSceneHierarchy,
-                lod[3] ?? defaultNoMaterialMerging,
-                logger
-            );
-
-            metadata.lods.push({
-                file: outName,
-                lodRatio,
-                bytes: statSync(outPath).size
-            });
-        }
-    } else {
-        // simplify model
-        const glbResults = await gltfToGlb(results.gltf);
-        const glbModel = glbResults.glb;
-
-        for (let i = 0; i < lods.length; i++) {
-            const [outName, outPath] = lodOutPaths[i];
-            const lod = lods[i];
-            const lodRatio = lod[0];
-            let noMaterialMerging = lod[3] ?? defaultNoMaterialMerging;
-
-            if (!noMaterialMerging) {
-                logger.warn(`Material merging force-disabled for LOD${i}; embedded textures are disabled, so materials can't be merged`);
-                noMaterialMerging = true;
-            }
-
-            await simplifyModel(
-                glbModel, outPath, lodRatio,
-                lod[2] ?? defaultKeepSceneHierarchy,
-                noMaterialMerging, logger
-            );
-
-            metadata.lods.push({
-                file: outName,
-                lodRatio,
-                textureGroup: texGroupMap[i],
-                bytes: statSync(outPath).size
-            });
-        }
-    }
-
-    // write metadata
-    writeFileSync(metadataOutPath, JSON.stringify(metadata));
-}
-
-async function old_splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options?: SplitModelOptions) {
-    // make temporary folder. automatically removed on exit
-    const tempOutFolder = mkdtempSync(joinPath(tmpdir(), 'model-splitter-'));
-
-    try {
-        return await old__splitModel(tempOutFolder, inputModelPath, outputFolder, lods, options);
-    } finally {
-        rmSync(tempOutFolder, { recursive: true, force: true });
-    }
 }
