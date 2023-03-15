@@ -7,6 +7,7 @@ import gm from 'gm';
 import { ConsoleLogger } from './ConsoleLogger';
 import { createHash } from 'node:crypto';
 import { dataUriToBuffer } from 'data-uri-to-buffer';
+import { version } from '../package.json';
 
 import type { IGLTF, IImage, IBuffer, ITextureInfo } from 'babylonjs-gltf2interface';
 import type { ResizeOption } from 'gm';
@@ -14,26 +15,38 @@ import type { Logger } from './Logger';
 
 export const EXTENSION_NAME = 'PLAYKO_EXTERNAL_WLE_MATERIAL';
 
+type ParsedLODConfigList = Array<[ gltfpackArgCombo: number, textureResizeOpt: PackedResizeOption ]>;
+type GltfpackArgCombo = [meshLODRatio: number, keepSceneHierarchy: boolean, noMaterialMerging: boolean];
+type ProcessedTextureList = Array<[ inputs: Array<[resizeOpt: PackedResizeOption, origHash: string]>, hash: string, content: Buffer, save: boolean ]>;
+
 export type ConcreteResizeOption = [width: number, height: number, type?: ResizeOption];
 export type PackedResizeOption = ConcreteResizeOption | 'keep';
 export type DefaultablePackedResizeOption = PackedResizeOption | 'default';
-export type SeparateResources = Record<string, Buffer>;
-export type MeshMap = Array<[nodePath: Array<string>, materialID: number]>;
 export type LODConfigList = Array<[ meshLODRatio: number, textureResizeOpt: DefaultablePackedResizeOption, keepSceneHierarchy?: boolean | null, noMaterialMerging?: boolean | null ]>;
-export type ParsedLODConfigList = Array<[ gltfpackArgCombo: number, textureResizeOpt: PackedResizeOption ]>;
-export type GltfpackArgCombo = [meshLODRatio: number, keepSceneHierarchy: boolean, noMaterialMerging: boolean];
-export type ProcessedTextureList = Array<[ inputs: Array<[resizeOpt: PackedResizeOption, origHash: string]>, hash: string, content: Buffer, save: boolean ]>;
-export type ParsedBufferList = Array<[ gacIdx: number, bufferIdx: number, content: Buffer ]>;
+
+export interface ConvertedMaterial {
+    pbr: boolean;
+    opaque: boolean;
+    normalTexture?: string,
+    albedoTexture?: string,
+    emissiveTexture?: string,
+    roughnessMetallicTexture?: string,
+    albedoFactor?: number[],
+    emissiveFactor?: number[],
+    alphaMaskThreshold?: number,
+    metallicFactor?: number,
+    roughnessFactor?: number,
+}
 
 export interface Metadata {
     lods: Array<LOD>,
-};
+}
 
 export interface LOD {
     file: string,
     lodRatio: number,
     bytes: number,
-};
+}
 
 export interface SplitModelOptions {
     embedTextures?: boolean;
@@ -42,7 +55,7 @@ export interface SplitModelOptions {
     defaultNoMaterialMerging?: boolean;
     force?: boolean;
     logger?: Logger;
-};
+}
 
 export class ModelSplitterError<T extends string> extends Error {
     isModelSplitterError = true;
@@ -257,8 +270,8 @@ function shiftID(origID: number, deletedIDs: Iterable<number>): number {
 
 export default async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
     // parse options and get defaults
-    let embedTextures = options.embedTextures ?? false;
-    let defaultResizeOpt: PackedResizeOption = options.defaultResizeOpt ?? 'keep';
+    const embedTextures = options.embedTextures ?? false;
+    const defaultResizeOpt: PackedResizeOption = options.defaultResizeOpt ?? 'keep';
     const defaultKeepSceneHierarchy = options.defaultKeepSceneHierarchy ?? false;
     const defaultNoMaterialMerging = options.defaultNoMaterialMerging ?? false;
     let force = options.force ?? false;
@@ -406,12 +419,25 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
     const originalImages = new Array<[buffer: Buffer, origHash: string]>();
     if (expectedImageCount > 0) {
         const images = gltfFirst.images as Array<IImage>;
-        for (let image of images) {
-            const bufferView = gltfFirst.bufferViews![image.bufferView!]!;
+        for (const image of images) {
+            if (image.bufferView === undefined) {
+                continue;
+            }
+
+            if (gltfFirst.bufferViews === undefined) {
+                throw new Error('Unexpected missing bufferViews array');
+            }
+
+            const bufferView = gltfFirst.bufferViews[image.bufferView];
             const bufferIdx = bufferView.buffer;
             const bufferLen = bufferView.byteLength;
             const bufferOffset = bufferView.byteOffset ?? 0;
-            const buffer = parseBuffer(parsedBuffers, gltfFirst.buffers![bufferIdx]);
+
+            if (gltfFirst.buffers === undefined) {
+                throw new Error('Unexpected missing buffers array');
+            }
+
+            const buffer = parseBuffer(parsedBuffers, gltfFirst.buffers[bufferIdx]);
             let imageBuffer = buffer.subarray(bufferOffset, bufferOffset + bufferLen);
 
             const hash = bufferHash(imageBuffer);
@@ -456,17 +482,34 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
         const [gacIdx, texResizeOpt] = lodsParsed[l];
         const gltf = gltfs[l];
 
+        // normalize gltf object
+        if (!gltf.images) {
+            gltf.images = [];
+        }
+
+        if (!gltf.buffers) {
+            gltf.buffers = [];
+        }
+
+        if (!gltf.bufferViews) {
+            gltf.bufferViews = [];
+        }
+
         // embed textures if needed, or move affected materials to metadata file
         // and replace original materials with dummies
         // XXX map contains buffers, then buffer views and their replacements
         const replacedBufferViews = new Map<number, Array<[bufferViewIdx: number, content: Buffer | null, contentHash: string, oldContentLen: number, oldContentOffset: number]>>();
         if (expectedImageCount > 0) {
-            const images = gltf.images!;
             for (let i = 0; i < expectedImageCount; i++) {
                 const [inBuf, origHash] = originalImages[i];
                 const [resBuf, resHash] = await resizeTexture(textures, origHash, texResizeOpt, !embedTextures, inBuf, logger);
-                const bufferViewIdx = images[i].bufferView!;
-                const bufferView = gltfFirst.bufferViews![bufferViewIdx]!;
+                const bufferViewIdx = gltf.images[i].bufferView;
+
+                if (bufferViewIdx === undefined) {
+                    throw new Error('Unexpected image with no bufferView');
+                }
+
+                const bufferView = gltf.bufferViews[bufferViewIdx];
                 logger.debug(`${bufferView}`);
                 const bufferIdx = bufferView.buffer;
                 const bufferLen = bufferView.byteLength;
@@ -482,20 +525,14 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             }
         }
 
-        logger.debug('old bufferviews');
-        let x = 0;
-        for (const bufferView of gltf.bufferViews!) {
-            logger.debug(`buffer view ${x++}: buffer ${bufferView.buffer}, length ${bufferView.byteLength}, offset ${bufferView.byteOffset ?? 0}`);
-        }
-
         // modify buffers
-        const bufferViewCount = gltf.bufferViews?.length ?? 0;
         for (const [bufferIdx, bufferViewList] of replacedBufferViews) {
             // get buffer views that belong to this buffer and that need to be
             // copied
             const ranges = new Array<[start: number, end: number]>;
 
             logger.debug('ranges start');
+            const bufferViewCount = gltf.bufferViews.length;
             for (let b = 0; b < bufferViewCount; b++) {
                 let found = false;
                 for (const [ob, _newContent, _hash, _oldContentLength, _oldContentOffset] of bufferViewList) {
@@ -509,7 +546,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
                     continue;
                 }
 
-                const bufferView = gltf.bufferViews![b];
+                const bufferView = gltf.bufferViews[b];
                 if (bufferView.buffer === bufferIdx) {
                     const offset = bufferView.byteOffset ?? 0;
                     ranges.push([offset, offset + bufferView.byteLength]);
@@ -536,7 +573,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             }
 
             // get gaps
-            const origBuffer = parseBuffer(parsedBuffers, gltf.buffers![bufferIdx]);
+            const origBuffer = parseBuffer(parsedBuffers, gltf.buffers[bufferIdx]);
             const gaps = new Array<[offset: number, len: number]>;
             if (ranges.length === 0) {
                 // buffer was nuked
@@ -595,7 +632,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             }
 
             // apply gap offsets to existing bufferviews
-            for (const bufferView of gltf.bufferViews!) {
+            for (const bufferView of gltf.bufferViews) {
                 if (bufferView.buffer !== bufferIdx) {
                     continue;
                 }
@@ -615,7 +652,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             const bMax = bufferViewList.length;
             for (let b = 0; b < bMax; b++) {
                 const [bufferViewIdx, newContent, _hash, _oldContentLength, _oldContentOffset] = bufferViewList[b];
-                const bufferView = gltf.bufferViews![bufferViewIdx];
+                const bufferView = gltf.bufferViews[bufferViewIdx];
                 logger.debug(`override bufferview ${bufferViewIdx}`);
 
                 if (newContent === null) {
@@ -628,14 +665,9 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             }
 
             // replace buffer (encode as base64)
-            const buffer = gltf.buffers![bufferIdx];
+            const buffer = gltf.buffers[bufferIdx];
             buffer.uri = `data:application/octet-stream;base64,${newBuffer.toString('base64')}`;
             buffer.byteLength = newBuffer.byteLength;
-        }
-
-        x = 0;
-        for (const bufferView of gltf.bufferViews!) {
-            logger.debug(`buffer view ${x++}: buffer ${bufferView.buffer}, length ${bufferView.byteLength}, offset ${bufferView.byteOffset ?? 0}`);
         }
 
         // handle external textures
@@ -656,8 +688,13 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             const externalImages = new Map<number, string>();
             for (let i = gltf.images.length - 1; i >= 0; i--) {
                 const image = gltf.images[i];
-                const bufferView = image.bufferView;
-                const hash = externalBufferViews.get(bufferView!);
+                const bufferViewIdx = image.bufferView;
+
+                if (bufferViewIdx === undefined) {
+                    throw new Error('Unexpected image with no bufferView');
+                }
+
+                const hash = externalBufferViews.get(bufferViewIdx);
                 if (hash !== undefined) {
                     gltf.images.splice(i, 1);
                     externalImages.set(i, hash);
@@ -689,20 +726,6 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             }
 
             // remove, convert and track materials that use external textures
-            interface ConvertedMaterial {
-                pbr: boolean;
-                opaque: boolean;
-                normalTexture?: string,
-                albedoTexture?: string,
-                emissiveTexture?: string,
-                roughnessMetallicTexture?: string,
-                albedoFactor?: number[],
-                emissiveFactor?: number[],
-                alphaMaskThreshold?: number,
-                metallicFactor?: number,
-                roughnessFactor?: number,
-            };
-
             const convertedMaterials = new Array<ConvertedMaterial>();
             const convertedMaterialsMap = new Map<number, number>();
             if (gltf.materials) {
@@ -871,6 +894,13 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
         }
 
         logger.debug('done, converting to glb')
+
+        // override generator
+        if (gltf.asset.generator === undefined || gltf.asset.generator === '') {
+            gltf.asset.generator = `model-splitter ${version}`;
+        } else {
+            gltf.asset.generator = `model-splitter ${version}, ${gltf.asset.generator}`;
+        }
 
         // save as glb
         const outName = `${modelName}.LOD${l}.glb`;
