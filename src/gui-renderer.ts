@@ -3,7 +3,7 @@ import { parseTextureSize } from './common';
 import type { LODConfigList, ModelSplitterError, CollisionError } from './lib';
 import type { notify as _notify } from 'node-notifier';
 import type { WrappedSplitModel } from './WrappedSplitModel';
-import type { ObjectLoggerMessage, ObjectLoggerMessageType } from './Logger';
+import type { ObjectLoggerMessage, ObjectLoggerMessageType } from './ObjectLogger';
 
 type Notify = typeof _notify;
 
@@ -347,6 +347,12 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
     setupFileFolderPicker(inputModelPicker, inputModelInput, inputModelButton);
     setupFileFolderPicker(outputFolderPicker, outputFolderInput, outputFolderButton);
 
+    const lodListChildren = lodList.children;
+    const meshQualityTooltip = (lodListChildren[1] as HTMLElement).title;
+    const textureSizeTooltip = (lodListChildren[2] as HTMLElement).title;
+    const sceneHierarchyTooltip = (lodListChildren[3] as HTMLElement).title;
+    const materialMergingTooltip = (lodListChildren[4] as HTMLElement).title;
+
     addLodButton.addEventListener('click', () => {
         const upButton = makeIconButton('up-icon.svg');
         lodList.appendChild(upButton);
@@ -363,17 +369,21 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
         const meshQuality = document.createElement('input');
         meshQuality.type = 'string';
         meshQuality.value = '100%';
+        meshQuality.title = meshQualityTooltip;
         lodList.appendChild(meshQuality);
 
         const textureSize = document.createElement('input');
         textureSize.type = 'string';
         textureSize.value = 'default';
+        textureSize.title = textureSizeTooltip;
         lodList.appendChild(textureSize);
 
         const sceneHierarchy = makeDropdown(['default', 'optimize', 'keep']);
+        sceneHierarchy.title = sceneHierarchyTooltip;
         lodList.appendChild(sceneHierarchy);
 
         const materialMerging = makeDropdown(['default', 'enable', 'disable']);
+        materialMerging.title = materialMergingTooltip;
         lodList.appendChild(materialMerging);
 
         let lastValidTextureSize = textureSize.value;
