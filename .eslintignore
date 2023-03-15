@@ -1,0 +1,9 @@
+cache
+lib
+node_modules
+nwjs-out
+nwjs-pkg-linux
+nwjs-pkg-win
+output
+pkgs
+resources
