@@ -881,12 +881,6 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
                     gltf.extensions = { [EXTENSION_NAME]: extension };
                 }
 
-                if (gltf.extensionsRequired) {
-                    gltf.extensionsRequired.push(EXTENSION_NAME);
-                } else {
-                    gltf.extensionsRequired = [EXTENSION_NAME];
-                }
-
                 if (gltf.extensionsUsed) {
                     gltf.extensionsUsed.push(EXTENSION_NAME);
                 } else {
