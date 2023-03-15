@@ -1,26 +1,9 @@
 import { basename } from 'node:path';
 import splitModel, { CollisionError, InvalidInputError } from './lib';
 import { version } from '../package.json';
+import { parseTextureSize } from './common';
 
 import type { LODConfigList, PackedResizeOption, DefaultablePackedResizeOption } from './lib';
-
-function parseResizeArg(arg: string): PackedResizeOption {
-    if (arg.endsWith('%')) {
-        const percent = Number(arg.substring(0, arg.length - 1));
-        if (isNaN(percent) || percent <= 0) {
-            throw new Error('Invalid percentage. Must be a number > 0');
-        }
-
-        return [percent, percent, '%'];
-    } else {
-        const sideLength = Number(arg);
-        if (isNaN(sideLength) || sideLength <= 0) {
-            throw new Error('Invalid side length. Must be a number > 0');
-        }
-
-        return [sideLength, sideLength, '!'];
-    }
-}
 
 function printHelp(execPath: string) {
     const execName = basename(execPath);
@@ -75,7 +58,7 @@ async function main() {
                 outputFolder = arg;
             } else if (expectResizeOpt) {
                 expectResizeOpt = false;
-                defaultResizeOpt = parseResizeArg(arg);
+                defaultResizeOpt = parseTextureSize(arg, false);
             } else if (arg === '--help') {
                 printHelp(process.argv[1]);
                 process.exit(0);
@@ -149,7 +132,7 @@ async function main() {
                         focus++;
 
                         if (part !== '') {
-                            resizeOpt = parseResizeArg(part);
+                            resizeOpt = parseTextureSize(part, true);
                         }
                     } else {
                         throw new Error('Too many unnamed LOD options');

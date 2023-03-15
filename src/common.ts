@@ -15,9 +15,10 @@ export function parseTextureSize(inStr: string, allowDefault: boolean): Defaulta
     } else {
         let texSizeStr = inStr;
         let option: ResizeOption = '!';
-        if (texSizeStr.endsWith('%')) {
-            option = '%';
-            texSizeStr = texSizeStr.substring(0, texSizeStr.length - 1);
+        if (texSizeStr.endsWith('%') || texSizeStr.endsWith('!')) {
+            const end = texSizeStr.length - 1;
+            option = texSizeStr[end] as '%' | '!';
+            texSizeStr = texSizeStr.substring(0, end);
         }
 
         const parts = texSizeStr.split(/[x,]/);
