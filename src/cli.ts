@@ -73,7 +73,7 @@ async function main() {
                 expectResizeOpt = true;
                 textureSizeSpecified = true;
             } else if (arg === '--force') {
-                force = false;
+                force = true;
             } else if (arg === '--embed-textures') {
                 embedTextures = true;
             } else if (arg === '--keep-scene-hierarchy') {

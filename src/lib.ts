@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { dataUriToBuffer } from 'data-uri-to-buffer';
 import { version } from '../package.json';
 
-import type { IGLTF, IImage, IBuffer, ITextureInfo } from 'babylonjs-gltf2interface';
+import type { IGLTF, IImage, IBuffer, ITextureInfo, MaterialAlphaMode } from 'babylonjs-gltf2interface';
 import type { ResizeOption } from 'gm';
 import type { Logger } from './Logger';
 
@@ -828,6 +828,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
 
             if (convertedMaterials.length > 0) {
                 // replace references to converted materials with custom extension
+                let needDummyMaterial = false;
                 if (gltf.meshes) {
                     for (const mesh of gltf.meshes) {
                         const replacedMaterials = new Array<[primitiveIdx: number, convertedMaterialIdx: number]>();
@@ -842,7 +843,8 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
                                 primitive.material = shiftID(primitive.material, convertedMaterialsMap.keys());
                             } else {
                                 replacedMaterials.push([p, cmi]);
-                                delete primitive.material;
+                                primitive.material = gltf.materials?.length ?? 0;
+                                needDummyMaterial = true;
                             }
                         }
 
@@ -858,17 +860,37 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
                     }
                 }
 
+                // create dummy material (meshes without materials are invalid)
+                if (needDummyMaterial) {
+                    if (!gltf.materials) {
+                        gltf.materials = [];
+                    }
+
+                    gltf.materials.push({
+                        emissiveFactor: [0, 0, 0],
+                        alphaMode: 'OPAQUE' as MaterialAlphaMode,
+                        doubleSided: false
+                    });
+                }
+
                 // store depended converted materials as root custom extension
+                const extension = { convertedMaterials };
                 if (gltf.extensions) {
-                    gltf.extensions[EXTENSION_NAME] = convertedMaterials;
+                    gltf.extensions[EXTENSION_NAME] = extension;
                 } else {
-                    gltf.extensions = { [EXTENSION_NAME]: convertedMaterials };
+                    gltf.extensions = { [EXTENSION_NAME]: extension };
                 }
 
                 if (gltf.extensionsRequired) {
                     gltf.extensionsRequired.push(EXTENSION_NAME);
                 } else {
                     gltf.extensionsRequired = [EXTENSION_NAME];
+                }
+
+                if (gltf.extensionsUsed) {
+                    gltf.extensionsUsed.push(EXTENSION_NAME);
+                } else {
+                    gltf.extensionsUsed = [EXTENSION_NAME];
                 }
             }
 
@@ -900,6 +922,31 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             gltf.asset.generator = `model-splitter ${version}`;
         } else {
             gltf.asset.generator = `model-splitter ${version}, ${gltf.asset.generator}`;
+        }
+
+        // remove empty entities
+        if (gltf.images.length === 0) {
+            delete gltf.images;
+        }
+
+        if (gltf.buffers.length === 0) {
+            delete gltf.buffers;
+        }
+
+        if (gltf.bufferViews.length === 0) {
+            delete gltf.bufferViews;
+        }
+
+        if (gltf.materials && gltf.materials.length === 0) {
+            delete gltf.materials;
+        }
+
+        if (gltf.textures && gltf.textures.length === 0) {
+            delete gltf.textures;
+        }
+
+        if (gltf.samplers && gltf.samplers.length === 0) {
+            delete gltf.samplers;
         }
 
         // save as glb
