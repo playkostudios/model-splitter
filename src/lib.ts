@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, statSync,
 import { basename, extname, resolve as resolvePath, join as joinPath } from 'node:path';
 import { tmpdir } from 'node:os';
 import gm from 'gm';
-import { ConsoleLogger } from './Logger';
+import { ConsoleLogger } from './ConsoleLogger';
 import { createHash } from 'node:crypto';
 import { dataUriToBuffer } from 'data-uri-to-buffer';
 
@@ -579,7 +579,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
         // embed textures if needed, or move affected materials to metadata file
         // and replace original materials with dummies
         // XXX map contains buffers, then buffer views and their replacements
-        const replacedBufferViews = new Map<number, Map<number, [content: Buffer | null, oldContentLen: number, oldContentOffset: number]>>();
+        const replacedBufferViews = new Map<number, Array<[bufferViewIdx: number, content: Buffer | null, oldContentLen: number, oldContentOffset: number]>>();
         if (expectedImageCount > 0) {
             const images = gltf.images!;
             for (let j = 0; j < expectedImageCount; j++) {
@@ -591,30 +591,41 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
                 const bufferLen = bufferView.byteLength;
                 const bufferOffset = bufferView.byteOffset ?? 0;
 
-                let bufferViewMap = replacedBufferViews.get(bufferIdx);
-                if (bufferViewMap === undefined) {
-                    bufferViewMap = new Map();
-                    replacedBufferViews.set(bufferIdx, bufferViewMap)
+                let bufferViewList = replacedBufferViews.get(bufferIdx);
+                if (bufferViewList === undefined) {
+                    bufferViewList = [];
+                    replacedBufferViews.set(bufferIdx, bufferViewList)
                 }
 
-                if (bufferViewMap.has(bufferViewIdx)) {
-                    throw new Error(`Buffer view "${bufferViewIdx}" already replaced`);
-                }
-
-                bufferViewMap.set(bufferViewIdx, [embedTextures ? resBuf : null, bufferLen, bufferOffset]);
+                bufferViewList.push([bufferViewIdx, embedTextures ? resBuf : null, bufferLen, bufferOffset]);
                 // TODO extract materials, map materials somehow
             }
         }
 
+        logger.debug('old bufferviews');
+        let x = 0;
+        for (const bufferView of gltf.bufferViews!) {
+            logger.debug(`buffer view ${x++}: buffer ${bufferView.buffer}, length ${bufferView.byteLength}, offset ${bufferView.byteOffset ?? 0}`);
+        }
+
         // modify buffers
         const bufferViewCount = gltf.bufferViews?.length ?? 0;
-        for (const [bufferIdx, bufferViewMap] of replacedBufferViews) {
+        for (const [bufferIdx, bufferViewList] of replacedBufferViews) {
             // get buffer views that belong to this buffer and that need to be
             // copied
             const ranges = new Array<[start: number, end: number]>;
 
+            logger.debug('ranges start');
             for (let b = 0; b < bufferViewCount; b++) {
-                if (bufferViewMap.has(b)) {
+                let found = false;
+                for (const [ob, _newContent, _oldContentLength, _oldContentOffset] of bufferViewList) {
+                    if (b === ob) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (found) {
                     continue;
                 }
 
@@ -622,6 +633,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
                 if (bufferView.buffer === bufferIdx) {
                     const offset = bufferView.byteOffset ?? 0;
                     ranges.push([offset, offset + bufferView.byteLength]);
+                    logger.debug(`${offset}, ${offset + bufferView.byteLength}`);
                 }
             }
 
@@ -669,26 +681,33 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
                 }
             }
 
+            logger.debug('gaps start');
+            for (const gap of gaps) {
+                logger.debug(`${gap[0]}, ${gap[1]}`);
+            }
+
             // make new buffer
             let newBufSize = 0;
             for (const range of ranges) {
                 newBufSize += range[1] - range[0];
             }
 
-            for (const [newContent, _1, _2] of bufferViewMap.values()) {
+            const newOffsets = new Array<number>();
+            for (const [_bufferViewIdx, newContent, _oldContentLength, _oldContentOffset] of bufferViewList) {
                 if (newContent) {
+                    newOffsets.push(newBufSize);
                     newBufSize += newContent.byteLength;
                 }
             }
 
-            const newBuffer = new Buffer(newBufSize);
+            const newBuffer = Buffer.alloc(newBufSize);
             let head = 0;
             for (const range of ranges) {
                 origBuffer.copy(newBuffer, head, ...range);
                 head += range[1] - range[0];
             }
 
-            for (const [newContent, _1, _2] of bufferViewMap.values()) {
+            for (const [_bufferViewIdx, newContent, _oldContentLength, _oldContentOffset] of bufferViewList) {
                 if (newContent) {
                     newContent.copy(newBuffer, head);
                     head += newContent.byteLength;
@@ -696,12 +715,48 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
             }
 
             // apply gap offsets to existing bufferviews
-            // TODO
+            for (const bufferView of gltf.bufferViews!) {
+                if (bufferView.buffer !== bufferIdx) {
+                    continue;
+                }
+
+                let byteOffset = bufferView.byteOffset ?? 0;
+                for (let g = gaps.length - 1; g >= 0; g--) {
+                    const gap = gaps[g];
+                    if (byteOffset >= gap[0]) {
+                        byteOffset -= gap[1];
+                    }
+                }
+
+                bufferView.byteOffset = byteOffset;
+            }
 
             // update overridden bufferviews
-            // TODO
+            const bMax = bufferViewList.length;
+            for (let b = 0; b < bMax; b++) {
+                const [bufferViewIdx, newContent, _oldContentLength, _oldContentOffset] = bufferViewList[b];
+                const bufferView = gltf.bufferViews![bufferViewIdx];
+                logger.debug(`override bufferview ${bufferViewIdx}`);
+
+                if (newContent === null) {
+                    bufferView.byteLength = 0;
+                    bufferView.byteOffset = 0;
+                } else {
+                    bufferView.byteLength = newContent.byteLength;
+                    bufferView.byteOffset = newOffsets[b];
+                }
+            }
+
+            // replace buffer (encode as base64)
+            const buffer = gltf.buffers![bufferIdx];
+            buffer.uri = `data:application/octet-stream;base64,${newBuffer.toString('base64')}`;
+            buffer.byteLength = newBuffer.byteLength;
         }
-        // TODO
+
+        x = 0;
+        for (const bufferView of gltf.bufferViews!) {
+            logger.debug(`buffer view ${x++}: buffer ${bufferView.buffer}, length ${bufferView.byteLength}, offset ${bufferView.byteOffset ?? 0}`);
+        }
 
         // save as glb
         const outName = `${modelName}.LOD${i}.glb`;

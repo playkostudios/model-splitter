@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
-import { ObjectLogger } from './Logger';
+import { ObjectLogger } from './ObjectLogger';
 // expose splitModel function
 import { default as _splitModel } from './lib';
 // expose node-notifier's notify function
 const { notify } = require('node-notifier');
 
-import type { ObjectLoggerMessage } from './Logger';
+import type { ObjectLoggerMessage } from './ObjectLogger';
 import type { LODConfigList, SplitModelOptions } from './lib';
 
 // XXX gltfpack is not auto-initialized because nw.js contexts are weird
