@@ -1,27 +1,8 @@
 {
+  "extends": "./tsconfig-common",
   "compilerOptions": {
-    "outFile": "lib/index.cjs.js",
-    "target": "es6",
-    "module": "es6",
-    "lib": ["ESNext"],
-    "sourceMap": true,
-    "strict": true,
-    "strictFunctionTypes": true,
-    "noImplicitReturns": true,
-    "noImplicitThis": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "alwaysStrict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": true,
-    "skipLibCheck": true,
-    "declaration": true,
-    "esModuleInterop": true,
-    "noImplicitOverride": true,
-    "experimentalDecorators": true,
-    "moduleResolution": "node",
-    "emitDeclarationOnly": true
+    "lib": ["ESNext", "DOM"]
   },
-  "include": ["src/lib.ts"],
-  "exclude": ["node_modules", "lib"]
+  "include": ["src/base/*.ts", "src/browser/*.ts", "example-project/js/*.js"],
+  "exclude": ["cache", "example-project", "lib", "node_modules", "nwjs-out", "nwjs-pkg-linux", "nwjs-pkg-win", "output", "pkgs", "resources"]
 }

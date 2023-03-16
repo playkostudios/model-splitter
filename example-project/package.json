@@ -1,0 +1,19 @@
+{
+  "name": "model-splitter-example",
+  "version": "0.0.1",
+  "description": "Example Wonderland Engine project for model-splitter runtime",
+  "main": "js/bundle.js",
+  "scripts": {
+    "build": "esbuild js/bundle.js --minify --bundle --sourcemap --format=iife --target=es6 --platform=browser --outfile=deploy/model-splitter-example-bundle.js"
+  },
+  "keywords": [],
+  "contributors": [
+    "Rafael Fernandes <rafael@playko.com>",
+    "Playko (https://www.playko.com/)"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@wonderlandengine/components": "0.9.2",
+    "esbuild": "^0.17.11"
+  }
+}

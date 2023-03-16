@@ -1,9 +1,9 @@
-import { parseTextureSize } from './common';
+import { parseTextureSize } from '../base/parseTextureSize';
 
-import type { LODConfigList, ModelSplitterError, CollisionError } from './lib';
+import type { LODConfigList, ModelSplitterError, CollisionError } from '../base/lib';
 import type { notify as _notify } from 'node-notifier';
-import type { WrappedSplitModel } from './WrappedSplitModel';
-import type { ObjectLoggerMessage, ObjectLoggerMessageType } from './ObjectLogger';
+import type { WrappedSplitModel } from '../base/WrappedSplitModel';
+import type { ObjectLoggerMessage, ObjectLoggerMessageType } from '../base/ObjectLogger';
 
 type Notify = typeof _notify;
 
@@ -333,7 +333,7 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
     clearTextOutputButton.addEventListener(
         'click',
         () => {
-            for (const child of Array.from(textOutput.childNodes.values())) {
+            for (const child of Array.from(textOutput.childNodes)) {
                 textOutput.removeChild(child);
             }
         }
@@ -341,7 +341,7 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
 
     toggleTextOutputButton.addEventListener(
         'click',
-        toggleTextOutput.bind(this, toggleTextOutputButton, textOutput, null)
+        toggleTextOutput.bind(null, toggleTextOutputButton, textOutput, null)
     );
 
     setupFileFolderPicker(inputModelPicker, inputModelInput, inputModelButton);
@@ -456,7 +456,12 @@ async function setupTool() {
         // start renderer
         await startRenderer(splitModel, notify, main);
     } catch(err) {
-        loadPara.textContent = `Failed to load tool: ${err.message ?? err}`;
+        if (typeof err === 'object' && err !== null) {
+            loadPara.textContent = `Failed to load tool: ${(err as Record<string, unknown>).message ?? err}`;
+        } else {
+            loadPara.textContent = `Failed to load tool: ${err}`;
+        }
+
         loadPara.className = 'error';
     }
 }

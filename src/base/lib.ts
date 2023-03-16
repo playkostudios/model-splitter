@@ -7,13 +7,13 @@ import gm from 'gm';
 import { ConsoleLogger } from './ConsoleLogger';
 import { createHash } from 'node:crypto';
 import { dataUriToBuffer } from 'data-uri-to-buffer';
-import { version } from '../package.json';
+import { version } from '../../package.json';
+import { EXTENSION_NAME } from './extension-name';
 
 import type { IGLTF, IImage, IBuffer, ITextureInfo, MaterialAlphaMode } from 'babylonjs-gltf2interface';
 import type { ResizeOption } from 'gm';
 import type { Logger } from './Logger';
-
-export const EXTENSION_NAME = 'PLAYKO_EXTERNAL_WLE_MATERIAL';
+import type { ConvertedMaterial, ConvertedMaterialTextureName, Metadata } from './output-types';
 
 type ParsedLODConfigList = Array<[ gltfpackArgCombo: number, textureResizeOpt: PackedResizeOption ]>;
 type GltfpackArgCombo = [meshLODRatio: number, keepSceneHierarchy: boolean, noMaterialMerging: boolean];
@@ -23,30 +23,6 @@ export type ConcreteResizeOption = [width: number, height: number, type?: Resize
 export type PackedResizeOption = ConcreteResizeOption | 'keep';
 export type DefaultablePackedResizeOption = PackedResizeOption | 'default';
 export type LODConfigList = Array<[ meshLODRatio: number, textureResizeOpt: DefaultablePackedResizeOption, keepSceneHierarchy?: boolean | null, noMaterialMerging?: boolean | null ]>;
-
-export interface ConvertedMaterial {
-    pbr: boolean;
-    opaque: boolean;
-    normalTexture?: string,
-    albedoTexture?: string,
-    emissiveTexture?: string,
-    roughnessMetallicTexture?: string,
-    albedoFactor?: number[],
-    emissiveFactor?: number[],
-    alphaMaskThreshold?: number,
-    metallicFactor?: number,
-    roughnessFactor?: number,
-}
-
-export interface Metadata {
-    lods: Array<LOD>,
-}
-
-export interface LOD {
-    file: string,
-    lodRatio: number,
-    bytes: number,
-}
 
 export interface SplitModelOptions {
     embedTextures?: boolean;
@@ -268,7 +244,7 @@ function shiftID(origID: number, deletedIDs: Iterable<number>): number {
     return newID;
 }
 
-export default async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
+export async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
     // parse options and get defaults
     const embedTextures = options.embedTextures ?? false;
     const defaultResizeOpt: PackedResizeOption = options.defaultResizeOpt ?? 'keep';
@@ -737,7 +713,7 @@ export default async function splitModel(inputModelPath: string, outputFolder: s
                     // store hash as reference in converted material
                     let hasEmbeddedTexture = false;
                     let hasExternalTexture = false;
-                    const texToCheck: Array<[textureName: null | 'emissiveTexture' | 'normalTexture' | 'albedoTexture' | 'roughnessMetallicTexture', textureInfo: ITextureInfo | undefined, pbrOnly: boolean]> = [
+                    const texToCheck: Array<[textureName: null | ConvertedMaterialTextureName, textureInfo: ITextureInfo | undefined, pbrOnly: boolean]> = [
                         [null, material.occlusionTexture, false],
                         ['emissiveTexture', material.emissiveTexture, false],
                         ['normalTexture', material.normalTexture, false],

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { ObjectLogger } from './ObjectLogger';
 // expose splitModel function
-import { default as _splitModel } from './lib';
+import { splitModel as _splitModel } from './lib';
 // expose node-notifier's notify function
 const { notify } = require('node-notifier');
 

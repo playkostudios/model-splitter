@@ -1,7 +1,7 @@
 import { basename } from 'node:path';
-import splitModel, { CollisionError, InvalidInputError } from './lib';
-import { version } from '../package.json';
-import { parseTextureSize } from './common';
+import { splitModel, CollisionError, InvalidInputError } from './lib';
+import { version } from '../../package.json';
+import { parseTextureSize } from './parseTextureSize';
 
 import type { LODConfigList, PackedResizeOption, DefaultablePackedResizeOption } from './lib';
 
@@ -152,7 +152,12 @@ async function main() {
             throw new Error('Output folder not specified');
         }
     } catch (err) {
-        console.error(err.message);
+        if (err !== null && typeof err === 'object') {
+            console.error((err as Record<string, unknown>).message ?? err);
+        } else {
+            console.error(err);
+        }
+
         printHelp(process.argv[1]);
         process.exit(1);
     }

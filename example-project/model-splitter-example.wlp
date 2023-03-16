@@ -244,11 +244,27 @@
                         "pbrTemplateMaterial": "59",
                         "phongTemplateMaterial": "62",
                         "avoidPBR": true,
-                        "lod": 0,
+                        "lod": 5,
                         "cdnRoot": "~embedded/",
                         "metadataURLFilename": "model.metadata.json"
                     }
                 }
+            ],
+            "translation": [
+                0.0,
+                2.0,
+                0.0
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
             ]
         }
     },
@@ -501,7 +517,8 @@
             "sourcePaths": [
                 "/js/editor-components-bundle.js",
                 "js/"
-            ]
+            ],
+            "useInternalBundler": false
         },
         "runtime": {
             "enableRuntimeGltf": true
