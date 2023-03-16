@@ -9,7 +9,9 @@ WL.registerComponent('model-loader', {
     phongTemplateMaterial: {type: WL.Type.Material}
 }, {
     async init() {
-        const modelLoader = new LODModelLoader(WL, this.cdnRoot);
-        modelLoader.loadFromURL(this.metadataURLFilename, this.lod, this.avoidPBR, this.phongTemplateMaterial, this.phongTemplateMaterial, this.pbrTemplateMaterial, this.pbrTemplateMaterial);
+        this.modelLoader = new LODModelLoader(WL, this.cdnRoot);
+    },
+    start() {
+        this.modelLoader.loadFromURL(this.metadataURLFilename, this.lod, this.avoidPBR, this.object, this.phongTemplateMaterial, this.phongTemplateMaterial, this.pbrTemplateMaterial, this.pbrTemplateMaterial);
     }
 });

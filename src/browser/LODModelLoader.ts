@@ -20,7 +20,7 @@ export class LODModelLoader {
         }
     }
 
-    async loadFromURL(metadataURL: string, lodLevel: number, avoidPBR: boolean, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
+    async loadFromURL(metadataURL: string, lodLevel: number, avoidPBR: boolean, parent: $Object | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
         // fetch metadata
         if (metadataURL === '') {
             throw new Error('No metadata URL specified');
@@ -35,10 +35,10 @@ export class LODModelLoader {
         const metadata = await reponse.json();
 
         // load LOD
-        return await this.load(metadata, lodLevel, avoidPBR, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
+        return await this.load(metadata, lodLevel, avoidPBR, parent, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
     }
 
-    async load(metadata: Metadata, lodLevel: number, avoidPBR: boolean, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
+    async load(metadata: Metadata, lodLevel: number, avoidPBR: boolean, parent: $Object | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
         // validate lod level and correct if necessary
         const lodMax = metadata.lods.length;
 
@@ -56,16 +56,54 @@ export class LODModelLoader {
         const sceneAppendParams = { loadGltfExtensions: true } as unknown as Record<string, string>;
         const { root, extensions } = await this.engine.scene.append(modelURL.href, sceneAppendParams) as { root: $Object, extensions: ExtData };
 
-        // apply materials
+        // check if there are converted materials (external textures)
+        let convertedMaterials: Array<ConvertedMaterial> | null = null;
         if (extensions.root) {
             const extRootData = extensions.root[EXTENSION_NAME];
             if (extRootData && Array.isArray(extRootData.convertedMaterials)) {
-                const materials = await this.loadMaterials(extRootData.convertedMaterials, avoidPBR, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
-                this.replaceMaterials(root, extensions.mesh, materials);
+                convertedMaterials = extRootData.convertedMaterials;
             }
         }
 
+        // deactivate meshes so there isn't a flash of no textures, or flash
+        // with wrong parent, if needed
+        const deactivateList = new Array<MeshComponent>();
+        if (convertedMaterials !== null || parent !== null) {
+            this.deactivateMeshes(root, deactivateList);
+        }
+
+        // apply materials
+        if (convertedMaterials !== null) {
+            const materials = await this.loadMaterials(convertedMaterials, avoidPBR, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
+            this.replaceMaterials(root, extensions.mesh, materials);
+        }
+
+        // reparent
+        if (parent !== null) {
+            root.parent = parent;
+        }
+
+        // reactivate meshes
+        for (const mesh of deactivateList) {
+            mesh.active = true;
+        }
+
         return root;
+    }
+
+    private deactivateMeshes(root: $Object, deactivateList: Array<MeshComponent>): void {
+        const stack = [root];
+        while (stack.length > 0) {
+            const next = stack.pop() as $Object;
+            const meshes = next.getComponents('mesh') as Array<MeshComponent>;
+
+            for (const mesh of meshes) {
+                mesh.active = false;
+                deactivateList.push(mesh);
+            }
+
+            stack.push(...next.children);
+        }
     }
 
     private async loadTexture(texSrc: string): Promise<Texture | null> {
