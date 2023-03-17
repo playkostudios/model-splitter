@@ -82,10 +82,6 @@ async function main() {
                 defaultNoMaterialMerging = true;
             } else {
                 const parts = arg.split(':');
-                if (parts.length > 2) {
-                    throw new Error('LOD arguments can have at most 2 parts');
-                }
-
                 let lodRatio = 1;
                 let resizeOpt: DefaultablePackedResizeOption = 'default';
                 let keepSceneHierarchy: boolean | null = null;
