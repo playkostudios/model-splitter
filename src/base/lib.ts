@@ -15,20 +15,31 @@ import type { ResizeOption } from 'gm';
 import type { Logger } from './Logger';
 import type { ConvertedMaterial, ConvertedMaterialTextureName, Metadata } from './output-types';
 
-type ParsedLODConfigList = Array<[ gltfpackArgCombo: number, textureResizeOpt: PackedResizeOption ]>;
-type GltfpackArgCombo = [meshLODRatio: number, keepSceneHierarchy: boolean, noMaterialMerging: boolean];
+type ParsedLODConfigList = Array<[ gltfpackArgCombo: number, textureResizeOpt: PackedResizeOption, embedTextures: boolean ]>;
+type GltfpackArgCombo = [ meshLODRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, quantDequantMesh: boolean ];
 type ProcessedTextureList = Array<[ inputs: Array<[resizeOpt: PackedResizeOption, origHash: string]>, hash: string, content: Buffer, save: boolean ]>;
 
 export type ConcreteResizeOption = [width: number, height: number, type?: ResizeOption];
 export type PackedResizeOption = ConcreteResizeOption | 'keep';
 export type DefaultablePackedResizeOption = PackedResizeOption | 'default';
-export type LODConfigList = Array<[ meshLODRatio: number, textureResizeOpt: DefaultablePackedResizeOption, keepSceneHierarchy?: boolean | null, noMaterialMerging?: boolean | null ]>;
+
+export interface LODConfig {
+    meshLODRatio: number;
+    embedTextures?: boolean | null;
+    textureResizing?: DefaultablePackedResizeOption | null;
+    optimizeSceneHierarchy?: boolean | null;
+    mergeMaterials?: boolean | null;
+    quantizeDequantizeMesh?: boolean | null;
+}
+
+export type LODConfigList = Array<LODConfig>;
 
 export interface SplitModelOptions {
-    embedTextures?: boolean;
-    defaultResizeOpt?: PackedResizeOption;
-    defaultKeepSceneHierarchy?: boolean;
-    defaultNoMaterialMerging?: boolean;
+    defaultEmbedTextures?: boolean;
+    defaultTextureResizing?: PackedResizeOption;
+    defaultOptimizeSceneHierarchy?: boolean;
+    defaultMergeMaterials?: boolean;
+    defaultQuantizeDequantizeMesh?: boolean;
     force?: boolean;
     logger?: Logger;
 }
@@ -53,18 +64,22 @@ export class InvalidInputError extends ModelSplitterError<'invalid-input'> {
     }
 }
 
-async function simplifyModel(modelBuffer: Buffer, isGLTF: boolean, lodRatio: number, keepSceneHierarchy: boolean, noMaterialMerging: boolean, logger: Logger): Promise<Uint8Array> {
+async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, quantize: boolean, logger: Logger): Promise<Uint8Array> {
     // build argument list
     const inputPath = `argument://input-model.gl${isGLTF ? 'tf' : 'b'}`;
     const outputPath = 'argument://output-model.glb';
-    const args = ['-i', inputPath, '-o', outputPath, '-noq'];
+    const args = ['-i', inputPath, '-o', outputPath];
 
-    if (keepSceneHierarchy) {
+    if (!optimizeSceneHierarchy) {
         args.push('-kn');
     }
 
-    if (noMaterialMerging) {
-        args.push('-km')
+    if (!mergeMaterials) {
+        args.push('-km');
+    }
+
+    if (!quantize) {
+        args.push('-noq');
     }
 
     if (lodRatio < 1) {
@@ -244,12 +259,44 @@ function shiftID(origID: number, deletedIDs: Iterable<number>): number {
     return newID;
 }
 
+function simplifyModel(modelBuffer: Buffer, gltfpackArgCombos: Array<GltfpackArgCombo>, gltfpackOutputs: Array<IGLTF>, gacIdx: number, logger: Logger) {
+    return new Promise<void>((resolve, reject) => {
+        const opts = gltfpackArgCombos[gacIdx];
+        const promise = gltfpackPass(modelBuffer, false, ...opts, logger);
+
+        let promiseMid: Promise<Uint8Array>;
+        if (opts[3]) {
+            promiseMid = promise.then(buf => {
+                return gltfpackPass(buf, false, 1, false, false, false, logger);
+            });
+        } else {
+            promiseMid = promise;
+        }
+
+        promiseMid.then(buf => {
+            return glbToGltf(buf);
+        }).then(results => {
+            if (results.separateResources && Object.getOwnPropertyNames(results.separateResources).length > 0) {
+                throw new Error('Unexpected external resources in GLTF');
+            }
+
+            if (!results.gltf) {
+                throw new Error('Unexpected missing GLTF in gltf-pipeline output');
+            }
+
+            gltfpackOutputs[gacIdx] = results.gltf;
+            resolve();
+        }).catch(reject);
+    });
+}
+
 export async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
     // parse options and get defaults
-    const embedTextures = options.embedTextures ?? false;
-    const defaultResizeOpt: PackedResizeOption = options.defaultResizeOpt ?? 'keep';
-    const defaultKeepSceneHierarchy = options.defaultKeepSceneHierarchy ?? false;
-    const defaultNoMaterialMerging = options.defaultNoMaterialMerging ?? false;
+    const defaultEmbedTextures = options.defaultEmbedTextures ?? false;
+    const defaultResizeOpt: PackedResizeOption = options.defaultTextureResizing ?? 'keep';
+    const defaultOptimizeSceneHierarchy = options.defaultOptimizeSceneHierarchy ?? true;
+    const defaultMergeMaterials = options.defaultMergeMaterials ?? true;
+    const defaultQuantizeDequantizeMesh = options.defaultQuantizeDequantizeMesh ?? false;
     let force = options.force ?? false;
     const logger = options.logger ?? new ConsoleLogger();
 
@@ -271,39 +318,44 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
 
         // parse resize option
         let resolvedResizeOpt: PackedResizeOption;
-        if (lod[1] === 'default') {
+        const rawResizeOpt = lod?.textureResizing ?? 'default';
+        if (rawResizeOpt === 'default') {
             resolvedResizeOpt = defaultResizeOpt;
-        } else if (Array.isArray(lod[1])) {
-            const concreteResOpts = lod[1];
+        } else if (Array.isArray(rawResizeOpt)) {
+            const concreteResOpts = rawResizeOpt;
             if (concreteResOpts[2] === '%' && concreteResOpts[0] === 100 && concreteResOpts[1] === 100) {
                 resolvedResizeOpt = 'keep';
             } else {
                 resolvedResizeOpt = concreteResOpts;
             }
         } else {
-            resolvedResizeOpt = lod[1];
+            resolvedResizeOpt = rawResizeOpt;
         }
 
         // parse gltfpack options
-        const lodRatio = lod[0];
-        const keepSceneHierarchy = lod[2] ?? defaultKeepSceneHierarchy;
-        const noMaterialMerging = lod[3] ?? defaultNoMaterialMerging;
+        const lodRatio = lod.meshLODRatio;
+        const optimizeSceneHierarchy = lod.optimizeSceneHierarchy ?? defaultOptimizeSceneHierarchy;
+        const mergeMaterials = lod.mergeMaterials ?? defaultMergeMaterials;
+        const quantizeDequantizeMesh = lod.quantizeDequantizeMesh ?? defaultQuantizeDequantizeMesh;
 
         let gacIdx = 0;
         const gacCount = gltfpackArgCombos.length;
         for (; gacIdx < gacCount; gacIdx++) {
             const gac = gltfpackArgCombos[gacIdx];
-            if (gac[0] === lodRatio && gac[1] === keepSceneHierarchy && gac[2] === noMaterialMerging) {
+            if (gac[0] === lodRatio && gac[1] === optimizeSceneHierarchy && gac[2] === mergeMaterials && gac[3] === quantizeDequantizeMesh) {
                 break;
             }
         }
 
         if (gacIdx === gacCount) {
-            gltfpackArgCombos.push([lodRatio, keepSceneHierarchy, noMaterialMerging]);
+            gltfpackArgCombos.push([lodRatio, optimizeSceneHierarchy, mergeMaterials, quantizeDequantizeMesh]);
         }
 
+        // parse other options
+        const embedTextures = lod.embedTextures ?? defaultEmbedTextures;
+
         // done
-        lodsParsed.push([gacIdx, resolvedResizeOpt]);
+        lodsParsed.push([gacIdx, resolvedResizeOpt, embedTextures]);
     }
 
     if (lodsParsed.length === 0) {
@@ -330,22 +382,7 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
 
     for (let i = 0; i < gacCount; i++) {
         const gacIdx = i;
-        gltfpackPromises.push(new Promise<void>((resolve, reject) => {
-            simplifyModel(origInputModel, false, ...gltfpackArgCombos[gacIdx], logger).then(buf => {
-                return glbToGltf(buf);
-            }).then(results => {
-                if (results.separateResources && Object.getOwnPropertyNames(results.separateResources).length > 0) {
-                    throw new Error('Unexpected external resources in GLTF');
-                }
-
-                if (!results.gltf) {
-                    throw new Error('Unexpected missing GLTF in gltf-pipeline output');
-                }
-
-                gltfpackOutputs[gacIdx] = results.gltf;
-                resolve();
-            }).catch(reject);
-        }));
+        gltfpackPromises.push(simplifyModel(origInputModel, gltfpackArgCombos, gltfpackOutputs, gacIdx, logger));
     }
 
     await Promise.all(gltfpackPromises);
@@ -455,7 +492,7 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
 
     for (let l = 0; l < lodCount; l++) {
         logger.debug(`starting lod ${l}`)
-        const [gacIdx, texResizeOpt] = lodsParsed[l];
+        const [gacIdx, texResizeOpt, embedTextures] = lodsParsed[l];
         const gltf = gltfs[l];
 
         // normalize gltf object
