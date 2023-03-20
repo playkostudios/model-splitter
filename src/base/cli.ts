@@ -194,7 +194,7 @@ async function main() {
 
                 lods.push({
                     meshLODRatio, textureResizing, optimizeSceneHierarchy,
-                    mergeMaterials, aggressive
+                    mergeMaterials, aggressive, embedTextures
                 });
             }
         }
