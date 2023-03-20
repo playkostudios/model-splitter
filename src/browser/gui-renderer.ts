@@ -7,8 +7,8 @@ import type { ObjectLoggerMessage, ObjectLoggerMessageType } from '../base/Objec
 
 type Notify = typeof _notify;
 
-const LOD_ROW_ELEM_OFFSET = 5;
-const LOD_ROW_ELEM_COUNT = 8;
+const LOD_ROW_ELEM_OFFSET = 7;
+const LOD_ROW_ELEM_COUNT = 10;
 
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
     // WARN this fails fast
@@ -192,8 +192,9 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
 
     const embedTexturesInput = getElement<HTMLInputElement>('embed-textures-input');
     const forceInput = getElement<HTMLInputElement>('force-input');
-    const keepSceneHierarchyInput = getElement<HTMLInputElement>('keep-scene-hierarchy-input');
-    const noMaterialMergingInput = getElement<HTMLInputElement>('no-material-merging-input');
+    const optimizeSceneHierarchyInput = getElement<HTMLInputElement>('optimize-scene-hierarchy-input');
+    const mergeMaterialsInput = getElement<HTMLInputElement>('merge-materials-input');
+    const quantizationInput = getElement<HTMLSelectElement>('quantization-input');
 
     const defaultTextureSizeInput = getElement<HTMLInputElement>('default-texture-size-input');
     let lastValidDefaultTextureSize = defaultTextureSizeInput.value;
@@ -240,59 +241,81 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
             }
 
             const force = forceInput.checked;
-            const embedTextures = embedTexturesInput.checked;
-            const defaultKeepSceneHierarchy = keepSceneHierarchyInput.checked;
-            const defaultNoMaterialMerging = noMaterialMergingInput.checked;
+            const defaultEmbedTextures = embedTexturesInput.checked;
+            const defaultOptimizeSceneHierarchy = optimizeSceneHierarchyInput.checked;
+            const defaultMergeMaterials = mergeMaterialsInput.checked;
+            const defaultQuantizeDequantizeMesh = quantizationInput.value === 'quantize-dequantize';
 
             if (lodList.children.length <= LOD_ROW_ELEM_OFFSET) {
                 throw new Error('Nothing to do; no LODs added');
             }
 
-            const defaultResizeOpt = parseTextureSize(defaultTextureSizeInput.value, false);
+            const defaultTextureResizing = parseTextureSize(defaultTextureSizeInput.value, false);
 
             const lods: LODConfigList = [];
             const children = lodList.children;
             const childCount = children.length;
             for (let i = LOD_ROW_ELEM_OFFSET; i < childCount; i += LOD_ROW_ELEM_COUNT) {
                 const textureSize = children[i + 5] as HTMLInputElement;
-                const texSize = parseTextureSize(textureSize.value, true);
+                const textureResizing = parseTextureSize(textureSize.value, true);
 
                 const meshQuality = children[i + 4] as HTMLInputElement;
                 const lodRatioStr = meshQuality.value;
-                const lodRatio = Number(lodRatioStr.substring(0, lodRatioStr.length - 1)) / 100;
+                const meshLODRatio = Number(lodRatioStr.substring(0, lodRatioStr.length - 1)) / 100;
 
-                let keepSceneHierarchy: boolean | null = null;
-                const keepSceneHierarchyIn = children[i + 6] as HTMLSelectElement;
-                if (keepSceneHierarchyIn.value === 'optimize') {
-                    keepSceneHierarchy = false;
-                } else if (keepSceneHierarchyIn.value === 'keep') {
-                    keepSceneHierarchy = true;
+                let embedTextures: boolean | null = null;
+                const embedTexturesIn = children[i + 6] as HTMLSelectElement;
+                if (embedTexturesIn.value === 'embedded') {
+                    embedTextures = true;
+                } else if (embedTexturesIn.value === 'external') {
+                    embedTextures = false;
                 }
 
-                let noMaterialMerging: boolean | null = null;
-                const noMaterialMergingIn = children[i + 6] as HTMLSelectElement;
-                if (noMaterialMergingIn.value === 'enable') {
-                    noMaterialMerging = false;
-                } else if (noMaterialMergingIn.value === 'disable') {
-                    noMaterialMerging = true;
+                let optimizeSceneHierarchy: boolean | null = null;
+                const optimizeSceneHierarchyIn = children[i + 7] as HTMLSelectElement;
+                if (optimizeSceneHierarchyIn.value === 'optimize') {
+                    optimizeSceneHierarchy = true;
+                } else if (optimizeSceneHierarchyIn.value === 'keep') {
+                    optimizeSceneHierarchy = false;
                 }
 
-                lods.push([lodRatio, texSize, keepSceneHierarchy, noMaterialMerging]);
+                let mergeMaterials: boolean | null = null;
+                const materialMergingIn = children[i + 8] as HTMLSelectElement;
+                if (materialMergingIn.value === 'merge') {
+                    mergeMaterials = true;
+                } else if (materialMergingIn.value === 'keep') {
+                    mergeMaterials = false;
+                }
+
+                let quantizeDequantizeMesh: boolean | null = null;
+                const quantizeDequantizeMeshIn = children[i + 9] as HTMLSelectElement;
+                if (quantizeDequantizeMeshIn.value === 'quantize-dequantize') {
+                    quantizeDequantizeMesh = true;
+                } else if (quantizeDequantizeMeshIn.value === 'none') {
+                    quantizeDequantizeMesh = false;
+                }
+
+                lods.push({
+                    meshLODRatio, textureResizing, optimizeSceneHierarchy,
+                    mergeMaterials, embedTextures, quantizeDequantizeMesh
+                });
             }
 
             // split model
             try {
                 await splitModel(inputPath, outputPath, lods, {
-                    embedTextures, defaultResizeOpt, defaultKeepSceneHierarchy,
-                    defaultNoMaterialMerging, force
+                    defaultEmbedTextures, defaultTextureResizing,
+                    defaultOptimizeSceneHierarchy, defaultMergeMaterials,
+                    defaultQuantizeDequantizeMesh, force
                 }, messages);
             } catch(err: unknown) {
                 assertCollisionError(err);
 
                 if (await showModal('Some existing files will be replaced! Run anyway?', true)) {
                     await splitModel(inputPath, outputPath, lods, {
-                        embedTextures, defaultResizeOpt, force: true,
-                        defaultKeepSceneHierarchy, defaultNoMaterialMerging
+                        defaultEmbedTextures, defaultTextureResizing,
+                        defaultOptimizeSceneHierarchy, defaultMergeMaterials,
+                        defaultQuantizeDequantizeMesh, force: true
                     }, messages);
                 } else {
                     throw err;
@@ -350,8 +373,10 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
     const lodListChildren = lodList.children;
     const meshQualityTooltip = (lodListChildren[1] as HTMLElement).title;
     const textureSizeTooltip = (lodListChildren[2] as HTMLElement).title;
-    const sceneHierarchyTooltip = (lodListChildren[3] as HTMLElement).title;
-    const materialMergingTooltip = (lodListChildren[4] as HTMLElement).title;
+    const textureEmbedTooltip = (lodListChildren[3] as HTMLElement).title;
+    const sceneHierarchyTooltip = (lodListChildren[4] as HTMLElement).title;
+    const materialMergingTooltip = (lodListChildren[5] as HTMLElement).title;
+    const quantizationTooltip = (lodListChildren[6] as HTMLElement).title;
 
     addLodButton.addEventListener('click', () => {
         const upButton = makeIconButton('up-icon.svg');
@@ -367,24 +392,32 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
         lodList.appendChild(label);
 
         const meshQuality = document.createElement('input');
-        meshQuality.type = 'string';
+        meshQuality.type = 'text';
         meshQuality.value = '100%';
         meshQuality.title = meshQualityTooltip;
         lodList.appendChild(meshQuality);
 
         const textureSize = document.createElement('input');
-        textureSize.type = 'string';
+        textureSize.type = 'text';
         textureSize.value = 'default';
         textureSize.title = textureSizeTooltip;
         lodList.appendChild(textureSize);
+
+        const textureEmbed = makeDropdown(['default', 'embedded', 'external']);
+        textureEmbed.title = textureEmbedTooltip;
+        lodList.appendChild(textureEmbed);
 
         const sceneHierarchy = makeDropdown(['default', 'optimize', 'keep']);
         sceneHierarchy.title = sceneHierarchyTooltip;
         lodList.appendChild(sceneHierarchy);
 
-        const materialMerging = makeDropdown(['default', 'enable', 'disable']);
+        const materialMerging = makeDropdown(['default', 'merge', 'keep']);
         materialMerging.title = materialMergingTooltip;
         lodList.appendChild(materialMerging);
+
+        const quantization = makeDropdown(['default', 'quantize-dequantize', 'none']);
+        quantization.title = quantizationTooltip;
+        lodList.appendChild(quantization);
 
         let lastValidTextureSize = textureSize.value;
         textureSize.addEventListener('change', () => {
@@ -407,8 +440,10 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
             lodList.removeChild(label);
             lodList.removeChild(meshQuality);
             lodList.removeChild(textureSize);
+            lodList.removeChild(textureEmbed);
             lodList.removeChild(sceneHierarchy);
             lodList.removeChild(materialMerging);
+            lodList.removeChild(quantization);
 
             updateLODRows(lodList, lodListHelp);
         });

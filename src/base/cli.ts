@@ -39,12 +39,13 @@ async function main() {
     // running from CLI. parse arguments
     let inputPath: string | null = null;
     let outputFolder: string | null = null;
-    let defaultResizeOpt: PackedResizeOption = 'keep';
+    let defaultTextureResizing: PackedResizeOption = 'keep';
     let force = false;
-    let embedTextures = false;
-    let defaultKeepSceneHierarchy = false;
-    let defaultNoMaterialMerging = false;
+    let defaultEmbedTextures = false;
+    let defaultOptimizeSceneHierarchy = false;
+    let defaultMergeMaterials = false;
     let textureSizeSpecified = false;
+    let defaultQuantizeDequantizeMesh = false;
     const lods: LODConfigList = [];
 
     try {
@@ -58,7 +59,7 @@ async function main() {
                 outputFolder = arg;
             } else if (expectResizeOpt) {
                 expectResizeOpt = false;
-                defaultResizeOpt = parseTextureSize(arg, false);
+                defaultTextureResizing = parseTextureSize(arg, false);
             } else if (arg === '--help') {
                 printHelp(process.argv[1]);
                 process.exit(0);
@@ -75,52 +76,84 @@ async function main() {
             } else if (arg === '--force') {
                 force = true;
             } else if (arg === '--embed-textures') {
-                embedTextures = true;
+                defaultEmbedTextures = true;
             } else if (arg === '--keep-scene-hierarchy') {
-                defaultKeepSceneHierarchy = true;
+                defaultOptimizeSceneHierarchy = false;
+            } else if (arg === '--optimize-scene-hierarchy') {
+                defaultOptimizeSceneHierarchy = true;
             } else if (arg === '--no-material-merging') {
-                defaultNoMaterialMerging = true;
+                defaultMergeMaterials = false;
+            } else if (arg === '--merge-materials') {
+                defaultMergeMaterials = true;
+            } else if (arg === '--quantize-dequantize-mesh') {
+                defaultQuantizeDequantizeMesh = true;
             } else {
                 const parts = arg.split(':');
-                let lodRatio = 1;
-                let resizeOpt: DefaultablePackedResizeOption = 'default';
-                let keepSceneHierarchy: boolean | null = null;
-                let noMaterialMerging: boolean | null = null;
+                let meshLODRatio = 1;
+                let embedTextures: boolean | null = null;
+                let textureResizing: DefaultablePackedResizeOption = 'default';
+                let optimizeSceneHierarchy: boolean | null = null;
+                let mergeMaterials: boolean | null = null;
+                let quantizeDequantizeMesh: boolean | null = null;
                 let focus = 0;
 
                 for (const partUntrimmed of parts) {
                     const part = partUntrimmed.trim();
 
-                    if (part === 'optimize-scene-hierarchy') {
-                        if (keepSceneHierarchy !== null) {
+                    if (part === 'embed-textures') {
+                        if (embedTextures !== null) {
+                            throw new Error('Texture embedding LOD option can only be specified once');
+                        }
+
+                        embedTextures = true;
+                    } else if (part === 'external-textures') {
+                        if (embedTextures !== null) {
+                            throw new Error('Texture embedding LOD option can only be specified once');
+                        }
+
+                        embedTextures = false;
+                    } else if (part === 'optimize-scene-hierarchy') {
+                        if (optimizeSceneHierarchy !== null) {
                             throw new Error('Scene hierarchy LOD option can only be specified once');
                         }
 
-                        keepSceneHierarchy = false;
+                        optimizeSceneHierarchy = true;
                     } else if (part === 'keep-scene-hierarchy') {
-                        if (keepSceneHierarchy !== null) {
+                        if (optimizeSceneHierarchy !== null) {
                             throw new Error('Scene hierarchy LOD option can only be specified once');
                         }
 
-                        keepSceneHierarchy = true;
+                        optimizeSceneHierarchy = false;
                     } else if (part === 'merge-materials') {
-                        if (noMaterialMerging !== null) {
+                        if (mergeMaterials !== null) {
                             throw new Error('Material merging LOD option can only be specified once');
                         }
 
-                        noMaterialMerging = false;
+                        mergeMaterials = true;
                     } else if (part === 'no-material-merging') {
-                        if (noMaterialMerging !== null) {
+                        if (mergeMaterials !== null) {
                             throw new Error('Material merging LOD option can only be specified once');
                         }
 
-                        noMaterialMerging = true;
+                        mergeMaterials = false;
+                    } else if (part === 'quantize-dequantize') {
+                        if (quantizeDequantizeMesh !== null) {
+                            throw new Error('Quantize-dequantize LOD option can only be specified once');
+                        }
+
+                        quantizeDequantizeMesh = true;
+                    } else if (part === 'no-quantize-dequantize') {
+                        if (quantizeDequantizeMesh !== null) {
+                            throw new Error('Quantize-dequantize LOD option can only be specified once');
+                        }
+
+                        quantizeDequantizeMesh = false;
                     } else if (focus === 0) {
                         focus++;
 
                         if (part !== '') {
-                            lodRatio = Number(part);
-                            if (isNaN(lodRatio) || lodRatio <= 0 || lodRatio > 1) {
+                            meshLODRatio = Number(part);
+                            if (isNaN(meshLODRatio) || meshLODRatio <= 0 || meshLODRatio > 1) {
                                 throw new Error('Invalid LOD simplification ratio. Must be a number > 0 and <= 1');
                             }
                         }
@@ -128,7 +161,7 @@ async function main() {
                         focus++;
 
                         if (part !== '') {
-                            resizeOpt = parseTextureSize(part, true);
+                            textureResizing = parseTextureSize(part, true);
                         }
                     } else {
                         throw new Error('Too many unnamed LOD options');
@@ -136,7 +169,10 @@ async function main() {
                 }
 
 
-                lods.push([lodRatio, resizeOpt, keepSceneHierarchy, noMaterialMerging]);
+                lods.push({
+                    meshLODRatio, textureResizing, optimizeSceneHierarchy,
+                    mergeMaterials, quantizeDequantizeMesh
+                });
             }
         }
 
@@ -160,8 +196,9 @@ async function main() {
 
     try {
         await splitModel(inputPath, outputFolder, lods, {
-            embedTextures, defaultResizeOpt, force, defaultKeepSceneHierarchy,
-            defaultNoMaterialMerging,
+            defaultEmbedTextures, defaultTextureResizing, force,
+            defaultOptimizeSceneHierarchy, defaultMergeMaterials,
+            defaultQuantizeDequantizeMesh
         });
     } catch(err) {
         if (err instanceof CollisionError) {

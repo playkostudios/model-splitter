@@ -21,21 +21,28 @@
             <input type="text" id="output-folder-input" class="expand" />
             <button id="output-folder-button">Pick...</button>
         </div>
-        <div class="input-row" title="If enabled, all model files will have their textures stored inside the model instead of in a separate file, which is less storage-efficient">
-            <label for="embed-textures-input" class="expand">Embed textures</label>
-            <input type="checkbox" id="embed-textures-input" />
-        </div>
         <div class="input-row">
             <label for="force-input" class="expand">Replace existing files</label>
             <input type="checkbox" id="force-input" />
         </div>
-        <div class="input-row" title="This is equivalent to the gltfpack -kn option if checked. Keeping the scene hierarchy may result in high draw calls">
-            <label for="keep-scene-hierarchy-input" class="expand">Keep scene hierarchy by default</label>
-            <input type="checkbox" id="keep-scene-hierarchy-input" />
+        <div class="input-row" title="If enabled, all model files will have their textures stored inside the model instead of in a separate file by default, which is less storage-efficient">
+            <label for="embed-textures-input" class="expand">Embed textures by default</label>
+            <input type="checkbox" id="embed-textures-input" />
         </div>
-        <div class="input-row" title="This is equivalent to the gltfpack -km option if checked">
-            <label for="no-material-merging-input" class="expand">Disable material merging by default</label>
-            <input type="checkbox" id="no-material-merging-input" />
+        <div class="input-row" title="This is equivalent to the gltfpack -kn option if unchecked. Keeping the scene hierarchy may result in high draw calls">
+            <label for="optimize-scene-hierarchy-input" class="expand">Optimize scene hierarchy by default</label>
+            <input type="checkbox" id="optimize-scene-hierarchy-input" checked />
+        </div>
+        <div class="input-row" title="This is equivalent to the gltfpack -km option if unchecked">
+            <label for="merge-materials-input" class="expand">Merge materials by default</label>
+            <input type="checkbox" id="merge-materials-input" checked />
+        </div>
+        <div class="input-row" title="If set to 'quantize-dequantize', then each mesh, by default, will be quantized and dequantized to deliberately introduce quantization errors">
+            <label for="quantization-input" class="expand">Default quantization</label>
+            <select id="quantization-input">
+                <option>quantize-dequantize</option>
+                <option selected>none</option>
+            </select>
         </div>
         <div class="input-row" title="The resizing to apply to all textures in the model by default. Format: 'W,H', 'WxH', 'L', 'W,H!', 'WxH!' or 'L!' for specific widths, heights or lengths, and 'W,H%', 'WxH%' or 'L%' for percentage widths, heights or lengths">
             <label for="default-texture-size-input" class="expand">Default texture size</label>
@@ -51,8 +58,10 @@
                 <span class="lod-list-header">LOD</span>
                 <span class="lod-list-header" title="The mesh quality as a percentage. If 100%, then the mesh will be optimized without a loss of quality. If 50%, then the mesh will be optimized with at most half of the quality lost">Mesh quality</span>
                 <span class="lod-list-header" title="The resizing to apply to all textures in the model. Format: 'W,H', 'WxH', 'L', 'W,H!', 'WxH!' or 'L!' for specific widths, heights or lengths, and 'W,H%', 'WxH%' or 'L%' for percentage widths, heights or lengths">Texture size</span>
-                <span class="lod-list-header" title="This is equivalent to the gltfpack -kn option if set to 'keep'. Keeping the scene hierarchy may result in high draw calls">Scene hierarchy</span>
-                <span class="lod-list-header" title="This is equivalent to the gltfpack -km option if disabled">Material merging</span>
+                <span class="lod-list-header" title="If set to 'embedded', then the model file will have its textures stored inside the model instead of in a separate file, which is less storage-efficient">Textures</span>
+                <span class="lod-list-header" title="This is equivalent to the gltfpack -kn option if set to 'keep'. Keeping the scene hierarchy may result in high draw calls">Scene</span>
+                <span class="lod-list-header" title="This is equivalent to the gltfpack -km option if set to 'keep'">Materials</span>
+                <span class="lod-list-header" title="Quantization to apply in this LOD. If set to 'quantize-dequantize', then the mesh will be quantized and de-quantized to deliberately introduce quantization errors">Quantization</span>
             </div>
         </fieldset>
         <div class="right-align-row">
