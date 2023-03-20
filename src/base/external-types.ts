@@ -11,7 +11,7 @@ export interface LODConfig {
     textureResizing?: DefaultablePackedResizeOption | null;
     optimizeSceneHierarchy?: boolean | null;
     mergeMaterials?: boolean | null;
-    quantizeDequantizeMesh?: boolean | null;
+    aggressive?: boolean | null;
 }
 
 export type LODConfigList = Array<LODConfig>;
@@ -21,7 +21,7 @@ export interface SplitModelOptions {
     defaultTextureResizing?: PackedResizeOption;
     defaultOptimizeSceneHierarchy?: boolean;
     defaultMergeMaterials?: boolean;
-    defaultQuantizeDequantizeMesh?: boolean;
+    defaultAggressive?: boolean;
     force?: boolean;
     logger?: Logger;
 }

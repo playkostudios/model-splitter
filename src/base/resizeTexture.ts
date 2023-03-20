@@ -11,6 +11,11 @@ function resizeOptMatches(a: PackedResizeOption, b: PackedResizeOption) {
 
 export function resizeTexture(textures: ProcessedTextureList, origHash: string, resizeOpt: PackedResizeOption, save: boolean, inBuf: Buffer, logger: Logger): Promise<[buffer: Buffer, hash: string, cached: boolean]> {
     return new Promise((resolve, reject) => {
+        // normalize to 'keep'
+        if (Array.isArray(resizeOpt) && resizeOpt[0] === 100 && resizeOpt[1] === 100 && resizeOpt[2] === '%') {
+            resizeOpt = 'keep';
+        }
+
         // check if this resize operation has already been done
         for (let i = 0; i < textures.length; i++) {
             const [oInputs, oHash, oBuffer, _save] = textures[i];

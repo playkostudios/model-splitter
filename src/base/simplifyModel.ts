@@ -8,11 +8,11 @@ import type { Logger } from './Logger';
 import type { GltfpackArgCombo } from './internal-types';
 import type { IGLTF } from 'babylonjs-gltf2interface';
 
-async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, quantize: boolean, logger: Logger): Promise<Uint8Array> {
+async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, aggressive: boolean, logger: Logger): Promise<Uint8Array> {
     // build argument list
     const inputPath = `argument://input-model.gl${isGLTF ? 'tf' : 'b'}`;
     const outputPath = 'argument://output-model.glb';
-    const args = ['-i', inputPath, '-o', outputPath];
+    const args = ['-i', inputPath, '-o', outputPath, '-noq'];
 
     if (!optimizeSceneHierarchy) {
         args.push('-kn');
@@ -22,16 +22,16 @@ async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: 
         args.push('-km');
     }
 
-    if (!quantize) {
-        args.push('-noq');
-    }
-
     if (lodRatio < 1) {
         if (lodRatio <= 0) {
             throw new InvalidInputError('LOD levels must be greater than 0');
         }
 
         args.push('-si', `${lodRatio}`);
+
+        if (aggressive) {
+            args.push('-sa');
+        }
     } else if (lodRatio > 1) {
         logger.warn('Ignored LOD ratio greater than 1; treating as 1 (no simplification)');
     }
@@ -84,19 +84,7 @@ async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: 
 
 export function simplifyModel(modelBuffer: Buffer, gltfpackArgCombos: Array<GltfpackArgCombo>, gltfpackOutputs: Array<IGLTF>, gacIdx: number, logger: Logger) {
     return new Promise<void>((resolve, reject) => {
-        const opts = gltfpackArgCombos[gacIdx];
-        const promise = gltfpackPass(modelBuffer, false, ...opts, logger);
-
-        let promiseMid: Promise<Uint8Array>;
-        if (opts[3]) {
-            promiseMid = promise.then(buf => {
-                return gltfpackPass(buf, false, 1, false, false, false, logger);
-            });
-        } else {
-            promiseMid = promise;
-        }
-
-        promiseMid.then(buf => {
+        gltfpackPass(modelBuffer, false, ...gltfpackArgCombos[gacIdx], logger).then(buf => {
             return glbToGltf(buf);
         }).then(results => {
             if (results.separateResources && Object.getOwnPropertyNames(results.separateResources).length > 0) {

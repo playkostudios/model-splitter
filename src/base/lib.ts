@@ -23,7 +23,7 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
     const defaultResizeOpt: PackedResizeOption = options.defaultTextureResizing ?? 'keep';
     const defaultOptimizeSceneHierarchy = options.defaultOptimizeSceneHierarchy ?? true;
     const defaultMergeMaterials = options.defaultMergeMaterials ?? true;
-    const defaultQuantizeDequantizeMesh = options.defaultQuantizeDequantizeMesh ?? false;
+    const defaultAggressive = options.defaultAggressive ?? false;
     let force = options.force ?? false;
     const logger = options.logger ?? new ConsoleLogger();
 
@@ -63,19 +63,19 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
         const lodRatio = lod.meshLODRatio;
         const optimizeSceneHierarchy = lod.optimizeSceneHierarchy ?? defaultOptimizeSceneHierarchy;
         const mergeMaterials = lod.mergeMaterials ?? defaultMergeMaterials;
-        const quantizeDequantizeMesh = lod.quantizeDequantizeMesh ?? defaultQuantizeDequantizeMesh;
+        const aggressive = lod.aggressive ?? defaultAggressive;
 
         let gacIdx = 0;
         const gacCount = gltfpackArgCombos.length;
         for (; gacIdx < gacCount; gacIdx++) {
             const gac = gltfpackArgCombos[gacIdx];
-            if (gac[0] === lodRatio && gac[1] === optimizeSceneHierarchy && gac[2] === mergeMaterials && gac[3] === quantizeDequantizeMesh) {
+            if (gac[0] === lodRatio && gac[1] === optimizeSceneHierarchy && gac[2] === mergeMaterials && gac[3] === aggressive) {
                 break;
             }
         }
 
         if (gacIdx === gacCount) {
-            gltfpackArgCombos.push([lodRatio, optimizeSceneHierarchy, mergeMaterials, quantizeDequantizeMesh]);
+            gltfpackArgCombos.push([lodRatio, optimizeSceneHierarchy, mergeMaterials, aggressive]);
         }
 
         // parse other options

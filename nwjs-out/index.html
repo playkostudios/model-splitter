@@ -37,12 +37,9 @@
             <label for="merge-materials-input" class="expand">Merge materials by default</label>
             <input type="checkbox" id="merge-materials-input" checked />
         </div>
-        <div class="input-row" title="If set to 'quantize-dequantize', then each mesh, by default, will be quantized and dequantized to deliberately introduce quantization errors">
-            <label for="quantization-input" class="expand">Default quantization</label>
-            <select id="quantization-input">
-                <option>quantize-dequantize</option>
-                <option selected>none</option>
-            </select>
+        <div class="input-row" title="If enabled, then mesh simplification will disregard quality">
+            <label for="aggressive-input" class="expand">Aggressive by default</label>
+            <input type="checkbox" id="aggressive-input" />
         </div>
         <div class="input-row" title="The resizing to apply to all textures in the model by default. Format: 'W,H', 'WxH', 'L', 'W,H!', 'WxH!' or 'L!' for specific widths, heights or lengths, and 'W,H%', 'WxH%' or 'L%' for percentage widths, heights or lengths">
             <label for="default-texture-size-input" class="expand">Default texture size</label>
@@ -61,7 +58,7 @@
                 <span class="lod-list-header" title="If set to 'embedded', then the model file will have its textures stored inside the model instead of in a separate file, which is less storage-efficient">Textures</span>
                 <span class="lod-list-header" title="This is equivalent to the gltfpack -kn option if set to 'keep'. Keeping the scene hierarchy may result in high draw calls">Scene</span>
                 <span class="lod-list-header" title="This is equivalent to the gltfpack -km option if set to 'keep'">Materials</span>
-                <span class="lod-list-header" title="Quantization to apply in this LOD. If set to 'quantize-dequantize', then the mesh will be quantized and de-quantized to deliberately introduce quantization errors">Quantization</span>
+                <span class="lod-list-header" title="If set tp 'aggressive', then mesh simplification will disregard quality">Aggressivity</span>
             </div>
         </fieldset>
         <div class="right-align-row">

@@ -25,11 +25,12 @@ ${execName} model.glb output 1 0.75:50% 0.5:25% 0.25:12.5%:optimize-scene-hierar
 Options:
 - <input file>: The model file to split into LODs
 - <output folder>: The folder to put the split model into
-- <lod simplification ratio>[:<texture percentage or target side length>][:optimize-scene-hierarchy][:keep-scene-hierarchy][:merge-materials][:no-material-merging]: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture, scene hierarchy, and material options are equivalent to (or counteract), respectively, "--texture-size", "--keep-scene-hierarchy" and "no-material-merging" but only apply to this LOD
+- <lod simplification ratio>[:<texture percentage or target side length>][:optimize-scene-hierarchy][:keep-scene-hierarchy][:merge-materials][:no-material-merging][:aggressive][:not-aggressive]: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture, scene hierarchy, and material options are equivalent to (or counteract), respectively, "--texture-size", "--keep-scene-hierarchy", "--no-material-merging" and "--aggressive" but only apply to this LOD
 - --force: Replace existing files. This flag is not set by default, meaning that if a file needs to be replaced the tool will throw an error
 - --embed-textures: Force each LOD model to have embedded textures instead of external textures
 - --keep-scene-hierarchy: Don't optimize the scene hierarchy; keeps the same hierarchy instead of merging nodes, at the expense of higher draw calls. Can be overridden per LOD
 - --no-material-merging: Don't merge materials and keep material names. Can be overridden per LOD
+- --aggressive: Simplify mesh disregarding quality. Can be overridden per LOD
 - --texture-size <percentage or target side length>: The texture size to use for each generated LOD if it's not specified in the LOD arguments
 - --log-level <log level>: The log level to use. Can be: 'none', 'error', 'warning', 'log' or 'debug'
 - --version: Print version and exit
@@ -44,10 +45,10 @@ async function main() {
     let defaultTextureResizing: PackedResizeOption = 'keep';
     let force = false;
     let defaultEmbedTextures = false;
-    let defaultOptimizeSceneHierarchy = false;
-    let defaultMergeMaterials = false;
+    let defaultOptimizeSceneHierarchy = true;
+    let defaultMergeMaterials = true;
     let textureSizeSpecified = false;
-    let defaultQuantizeDequantizeMesh = false;
+    let defaultAggressive = false;
     let logLevel = null;
     const lods: LODConfigList = [];
 
@@ -99,14 +100,10 @@ async function main() {
                 defaultEmbedTextures = true;
             } else if (arg === '--keep-scene-hierarchy') {
                 defaultOptimizeSceneHierarchy = false;
-            } else if (arg === '--optimize-scene-hierarchy') {
-                defaultOptimizeSceneHierarchy = true;
             } else if (arg === '--no-material-merging') {
                 defaultMergeMaterials = false;
-            } else if (arg === '--merge-materials') {
-                defaultMergeMaterials = true;
-            } else if (arg === '--quantize-dequantize-mesh') {
-                defaultQuantizeDequantizeMesh = true;
+            } else if (arg === '--aggressive') {
+                defaultAggressive = true;
             } else if (arg === '--log-level') {
                 expectLogLevel = true;
 
@@ -120,7 +117,7 @@ async function main() {
                 let textureResizing: DefaultablePackedResizeOption = 'default';
                 let optimizeSceneHierarchy: boolean | null = null;
                 let mergeMaterials: boolean | null = null;
-                let quantizeDequantizeMesh: boolean | null = null;
+                let aggressive: boolean | null = null;
                 let focus = 0;
 
                 for (const partUntrimmed of parts) {
@@ -162,18 +159,18 @@ async function main() {
                         }
 
                         mergeMaterials = false;
-                    } else if (part === 'quantize-dequantize') {
-                        if (quantizeDequantizeMesh !== null) {
-                            throw new Error('Quantize-dequantize LOD option can only be specified once');
+                    } else if (part === 'aggressive') {
+                        if (aggressive !== null) {
+                            throw new Error('Aggressivity LOD option can only be specified once');
                         }
 
-                        quantizeDequantizeMesh = true;
-                    } else if (part === 'no-quantize-dequantize') {
-                        if (quantizeDequantizeMesh !== null) {
-                            throw new Error('Quantize-dequantize LOD option can only be specified once');
+                        aggressive = true;
+                    } else if (part === 'not-aggressive') {
+                        if (aggressive !== null) {
+                            throw new Error('Aggressivity LOD option can only be specified once');
                         }
 
-                        quantizeDequantizeMesh = false;
+                        aggressive = false;
                     } else if (focus === 0) {
                         focus++;
 
@@ -197,7 +194,7 @@ async function main() {
 
                 lods.push({
                     meshLODRatio, textureResizing, optimizeSceneHierarchy,
-                    mergeMaterials, quantizeDequantizeMesh
+                    mergeMaterials, aggressive
                 });
             }
         }
@@ -226,7 +223,7 @@ async function main() {
         await splitModel(inputPath, outputFolder, lods, {
             defaultEmbedTextures, defaultTextureResizing, force,
             defaultOptimizeSceneHierarchy, defaultMergeMaterials,
-            defaultQuantizeDequantizeMesh, logger
+            defaultAggressive, logger
         });
     } catch(err) {
         if (err instanceof CollisionError) {
