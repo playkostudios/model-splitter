@@ -65,6 +65,13 @@
             </div>
         </fieldset>
         <div class="right-align-row">
+            <label for="log-level">Log level:</label>
+            <select id="log-level">
+                <option value="error">Errors only</option>
+                <option value="warning">Errors and warnings</option>
+                <option value="log" selected>Normal</option>
+                <option value="debug">Verbose</option>
+            </select>
             <button id="clear-text-output-button">Clear text output</button>
             <button id="toggle-text-output-button">Show text output</button>
             <button id="split-button">Split model</button>

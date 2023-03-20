@@ -15,6 +15,7 @@ import type { LODConfigList, PackedResizeOption, SplitModelOptions } from './ext
 
 export * from './ModelSplitterError';
 export * from './external-types';
+export * from './LogLevel';
 
 export async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
     // parse options and get defaults
@@ -224,7 +225,10 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
     };
 
     for (let l = 0; l < lodCount; l++) {
-        await splitSingleLOD(l, modelName, outputFolder, metadata, gltfpackArgCombos, gltfs[l], lodsParsed[l], originalImages, textures, parsedBuffers, expectedImageCount, force, logger);
+        logger.debug(`Starting to generate LOD${l}...`);
+        const outName = `${modelName}.LOD${l}.glb`;
+        const outPath = resolvePath(outputFolder, outName);
+        await splitSingleLOD(outName, outPath, metadata, gltfpackArgCombos, gltfs[l], lodsParsed[l], originalImages, textures, parsedBuffers, expectedImageCount, force, logger);
     }
 
     // write non-embedded textures to final destination

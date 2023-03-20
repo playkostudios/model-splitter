@@ -3,7 +3,6 @@ const { gltfToGlb } = require('gltf-pipeline');
 import { version } from '../../package.json';
 import { EXTENSION_NAME } from './extension-name';
 import { assertFreeFile } from './assertFreeFile';
-import { resolve as resolvePath } from 'node:path';
 import { statSync, writeFileSync } from 'node:fs';
 import { resizeTexture } from './resizeTexture';
 import { shiftID } from './shiftID';
@@ -14,8 +13,7 @@ import type { ConvertedMaterial, ConvertedMaterialTextureName, Metadata } from '
 import type { GltfpackArgCombo, OriginalImagesList, ParsedLODConfig, ProcessedTextureList } from './internal-types';
 import type { Logger } from './Logger';
 
-export async function splitSingleLOD(l: number, modelName: string, outputFolder: string, metadata: Metadata, gltfpackArgCombos: Array<GltfpackArgCombo>, gltf: IGLTF, lodOptions: ParsedLODConfig, originalImages: OriginalImagesList, textures: ProcessedTextureList, parsedBuffers: Array<Buffer>, expectedImageCount: number, force: boolean, logger: Logger) {
-    logger.debug(`starting lod ${l}`)
+export async function splitSingleLOD(outName: string, outPath: string, metadata: Metadata, gltfpackArgCombos: Array<GltfpackArgCombo>, gltf: IGLTF, lodOptions: ParsedLODConfig, originalImages: OriginalImagesList, textures: ProcessedTextureList, parsedBuffers: Array<Buffer>, expectedImageCount: number, force: boolean, logger: Logger) {
     const [gacIdx, texResizeOpt, embedTextures] = lodOptions;
     // normalize gltf object
     if (!gltf.images) {
@@ -485,9 +483,6 @@ export async function splitSingleLOD(l: number, modelName: string, outputFolder:
     }
 
     // save as glb
-    const outName = `${modelName}.LOD${l}.glb`;
-    const outPath = resolvePath(outputFolder, outName);
-
     if (!force) {
         assertFreeFile(outPath);
     }

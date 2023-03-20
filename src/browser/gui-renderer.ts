@@ -1,6 +1,8 @@
 import { parseTextureSize } from '../base/parseTextureSize';
+import { LogLevel } from '../base/LogLevel';
 
-import type { LODConfigList, ModelSplitterError, CollisionError } from '../base/lib';
+import type { LODConfigList } from '../base/external-types';
+import type { ModelSplitterError, CollisionError } from '../base/ModelSplitterError';
 import type { notify as _notify } from 'node-notifier';
 import type { WrappedSplitModel } from '../base/WrappedSplitModel';
 import type { ObjectLoggerMessage, ObjectLoggerMessageType } from '../base/ObjectLogger';
@@ -121,7 +123,7 @@ function reorderLODRow(lodList: HTMLDivElement, lodListHelp: HTMLParagraphElemen
     updateLODRows(lodList, lodListHelp);
 }
 
-function log(textOutput: HTMLDivElement, mType: ObjectLoggerMessageType, timestamp: number | null, ...messages: Array<unknown>) {
+function log(textOutput: HTMLDivElement, logLevel: LogLevel, mType: ObjectLoggerMessageType, timestamp: number | null, ...messages: Array<unknown>) {
     if (mType === 'errorString') {
         mType = 'error';
     }
@@ -138,15 +140,20 @@ function log(textOutput: HTMLDivElement, mType: ObjectLoggerMessageType, timesta
     msgTimestamp.textContent = timestampStr;
 
     const msgContainer = document.createElement('p');
-    msgContainer.className = `msg-${mType}`;
+    const msgTypeClass = `msg-${mType}`;
+    msgContainer.className = msgTypeClass;
     msgContainer.appendChild(msgTimestamp);
     msgContainer.append(messages.join(' '));
+
+    if (logLevel < parseMsgTypeClass(msgTypeClass)) {
+        msgContainer.classList.add('hidden');
+    }
 
     textOutput.appendChild(msgContainer);
 }
 
-function logObj(textOutput: HTMLDivElement, message: ObjectLoggerMessage) {
-    log(textOutput, message.type, message.time, message.data);
+function logObj(textOutput: HTMLDivElement, logLevel: LogLevel, message: ObjectLoggerMessage) {
+    log(textOutput, logLevel, message.type, message.time, message.data);
 }
 
 async function showModal(question: string, isQuestion: boolean): Promise<boolean> {
@@ -178,6 +185,31 @@ function makeDropdown(options: Array<string>): HTMLSelectElement {
     return sel;
 }
 
+function parseMsgTypeClass(msgTypeClass: string): LogLevel {
+    if (msgTypeClass === 'msg-error') {
+        return LogLevel.Error;
+    } else if (msgTypeClass === 'msg-warn') {
+        return LogLevel.Warning;
+    } else if (msgTypeClass === 'msg-log') {
+        return LogLevel.Log;
+    } else {
+        return LogLevel.Debug;
+    }
+}
+
+function parseLogLevel(select: HTMLSelectElement): LogLevel {
+    const val = select.value;
+    if (val === 'error') {
+        return LogLevel.Error;
+    } else if (val === 'warning') {
+        return LogLevel.Warning;
+    } else if (val === 'log') {
+        return LogLevel.Log;
+    } else {
+        return LogLevel.Debug;
+    }
+}
+
 async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main: HTMLElement): Promise<void> {
     // get elements
     const inputModelPicker = getElement<HTMLInputElement>('input-model-picker');
@@ -201,6 +233,7 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
     const lodListHelp = getElement<HTMLParagraphElement>('lod-list-help');
     const lodList = getElement<HTMLDivElement>('lod-list');
 
+    const logLevelSelect = getElement<HTMLSelectElement>('log-level');
     const clearTextOutputButton = getElement<HTMLButtonElement>('clear-text-output-button');
     const toggleTextOutputButton = getElement<HTMLButtonElement>('toggle-text-output-button');
     const textOutput = getElement<HTMLDivElement>('text-output');
@@ -208,6 +241,26 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
     const splitButton = getElement<HTMLButtonElement>('split-button');
 
     // add event listeners
+    let logLevel = parseLogLevel(logLevelSelect);
+    logLevelSelect.addEventListener('change', () => {
+        logLevel = parseLogLevel(logLevelSelect);
+
+        for (const message of Array.from(textOutput.children)) {
+            let msgTypeClass = LogLevel.Debug;
+            for (const msgClass of Array.from(message.classList)) {
+                if (msgClass.startsWith('msg-')) {
+                    msgTypeClass = parseMsgTypeClass(msgClass);
+                }
+            }
+
+            if (logLevel >= msgTypeClass) {
+                message.classList.remove('hidden');
+            } else {
+                message.classList.add('hidden');
+            }
+        }
+    });
+
     defaultTextureSizeInput.addEventListener('change', () => {
         // validate texture size. switch to old value if new value is invalid
         try {
@@ -220,7 +273,7 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
 
     splitButton.addEventListener('click', async () => {
         splitButton.disabled = true;
-        log(textOutput, 'log', null, `Splitting model...`);
+        log(textOutput, logLevel, 'log', null, `Splitting model...`);
 
         let error: unknown;
         let hadError = false;
@@ -299,7 +352,10 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
             }
 
             // split model
-            const messageCallback = logObj.bind(null, textOutput);
+            const messageCallback = (message: ObjectLoggerMessage) => {
+                logObj(textOutput, logLevel, message);
+            };
+
             try {
                 await splitModel(inputPath, outputPath, lods, {
                     defaultEmbedTextures, defaultTextureResizing,
@@ -329,9 +385,9 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
         let message: string;
         if (hadError) {
             if (typeof error === 'object' && error !== null && 'message' in error) {
-                log(textOutput, 'errorString', null, error.message);
+                log(textOutput, logLevel, 'errorString', null, error.message);
             } else {
-                log(textOutput, 'error', null, error);
+                log(textOutput, logLevel, 'error', null, error);
             }
 
             message = 'Failed to split model';
@@ -339,7 +395,7 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
             message = 'Done splitting model';
         }
 
-        log(textOutput, 'log', null, message);
+        log(textOutput, logLevel, 'log', null, message);
         showModal(message, false);
 
         if (!document.hasFocus()) {
@@ -468,7 +524,7 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
     // remove loading message and show UI
     loadPara.parentElement?.removeChild(loadPara);
     main.style.display = '';
-    log(textOutput, 'log', null, 'Initialised model-splitter GUI');
+    log(textOutput, logLevel, 'log', null, 'Initialised model-splitter GUI');
 }
 
 async function setupTool() {

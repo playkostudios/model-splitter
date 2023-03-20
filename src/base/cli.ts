@@ -1,7 +1,8 @@
 import { basename } from 'node:path';
-import { splitModel, CollisionError, InvalidInputError } from './lib';
+import { splitModel, CollisionError, InvalidInputError, LogLevel } from './lib';
 import { version } from '../../package.json';
 import { parseTextureSize } from './parseTextureSize';
+import { ConsoleLogger } from './ConsoleLogger';
 
 import type { LODConfigList, PackedResizeOption, DefaultablePackedResizeOption } from './lib';
 
@@ -30,6 +31,7 @@ Options:
 - --keep-scene-hierarchy: Don't optimize the scene hierarchy; keeps the same hierarchy instead of merging nodes, at the expense of higher draw calls. Can be overridden per LOD
 - --no-material-merging: Don't merge materials and keep material names. Can be overridden per LOD
 - --texture-size <percentage or target side length>: The texture size to use for each generated LOD if it's not specified in the LOD arguments
+- --log-level <log level>: The log level to use. Can be: 'none', 'error', 'warning', 'log' or 'debug'
 - --version: Print version and exit
 - --help: Print help and exit`
     );
@@ -46,11 +48,13 @@ async function main() {
     let defaultMergeMaterials = false;
     let textureSizeSpecified = false;
     let defaultQuantizeDequantizeMesh = false;
+    let logLevel = null;
     const lods: LODConfigList = [];
 
     try {
         const cliArgs = process.argv.slice(2);
         let expectResizeOpt = false;
+        let expectLogLevel = false;
 
         for (const arg of cliArgs) {
             if (inputPath === null) {
@@ -60,6 +64,22 @@ async function main() {
             } else if (expectResizeOpt) {
                 expectResizeOpt = false;
                 defaultTextureResizing = parseTextureSize(arg, false);
+            } else if (expectLogLevel) {
+                expectLogLevel = false;
+
+                if (arg === 'none') {
+                    logLevel = LogLevel.None;
+                } else if (arg === 'error') {
+                    logLevel = LogLevel.Error;
+                } else if (arg === 'warning') {
+                    logLevel = LogLevel.Warning;
+                } else if (arg === 'log') {
+                    logLevel = LogLevel.Log;
+                } else if (arg === 'debug') {
+                    logLevel = LogLevel.Debug;
+                } else {
+                    throw new Error(`Invalid log level "${arg}"`);
+                }
             } else if (arg === '--help') {
                 printHelp(process.argv[1]);
                 process.exit(0);
@@ -87,6 +107,12 @@ async function main() {
                 defaultMergeMaterials = true;
             } else if (arg === '--quantize-dequantize-mesh') {
                 defaultQuantizeDequantizeMesh = true;
+            } else if (arg === '--log-level') {
+                expectLogLevel = true;
+
+                if (logLevel !== null) {
+                    throw new Error('Log level can only be specified once');
+                }
             } else {
                 const parts = arg.split(':');
                 let meshLODRatio = 1;
@@ -194,11 +220,13 @@ async function main() {
         process.exit(1);
     }
 
+    const logger = new ConsoleLogger(logLevel ?? LogLevel.Log);
+
     try {
         await splitModel(inputPath, outputFolder, lods, {
             defaultEmbedTextures, defaultTextureResizing, force,
             defaultOptimizeSceneHierarchy, defaultMergeMaterials,
-            defaultQuantizeDequantizeMesh
+            defaultQuantizeDequantizeMesh, logger
         });
     } catch(err) {
         if (err instanceof CollisionError) {
