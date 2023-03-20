@@ -38,7 +38,7 @@ async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: 
 
     // simplify
     let output: Uint8Array | null = null;
-    const log = await gltfpack.pack(args, {
+    const log: string = await gltfpack.pack(args, {
         read: (filePath: string) => {
             if (filePath === inputPath) {
                 return modelBuffer;
@@ -57,7 +57,22 @@ async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: 
 
     // extract output
     if (log !== '') {
-        logger.log(log);
+        const lines = log.split('\n');
+
+        for (const line of lines) {
+            if (line === '') {
+                continue;
+            }
+
+            const prefixLine = `[gltfpack] ${line}`;
+            if (line.startsWith('Error')) {
+                logger.errorString(prefixLine);
+            } else if (line.startsWith('Warning')) {
+                logger.warn(prefixLine);
+            } else {
+                logger.log(prefixLine);
+            }
+        }
     }
 
     if (output === null) {

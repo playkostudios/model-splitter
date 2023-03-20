@@ -396,10 +396,11 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
         }
 
         log(textOutput, logLevel, 'log', null, message);
-        showModal(message, false);
 
         if (!document.hasFocus()) {
             notify({ title: 'model-splitter', message });
+        } else {
+            showModal(message, false);
         }
 
         splitButton.disabled = false;
