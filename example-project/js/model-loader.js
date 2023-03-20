@@ -8,7 +8,7 @@ WL.registerComponent('model-loader', {
     pbrTemplateMaterial: {type: WL.Type.Material},
     phongTemplateMaterial: {type: WL.Type.Material}
 }, {
-    async init() {
+    init() {
         this.modelLoader = new LODModelLoader(WL, this.cdnRoot);
     },
     start() {

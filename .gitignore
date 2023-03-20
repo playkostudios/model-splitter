@@ -3,6 +3,7 @@ node_modules/
 /example-project/deploy/
 /example-project/cache/
 /example-project/static/*
+/example-project/imgui.ini
 !/example-project/static/.keepme
 /*.glb
 /*.gltf
