@@ -11,7 +11,7 @@ import { parseBuffer } from './caching';
 
 import type { IGLTF, ITextureInfo, MaterialAlphaMode } from 'babylonjs-gltf2interface';
 import type { ConvertedMaterial, ConvertedMaterialTextureName, Metadata } from './output-types';
-import type { GltfpackArgCombo, ParsedLODConfig, ProcessedTextureList } from './internal-types';
+import type { GltfpackArgCombo, OriginalImagesList, ParsedLODConfig, ProcessedTextureList } from './internal-types';
 import type { Logger } from './Logger';
 
 export async function splitSingleLOD(l: number, modelName: string, outputFolder: string, metadata: Metadata, gltfpackArgCombos: Array<GltfpackArgCombo>, gltf: IGLTF, lodOptions: ParsedLODConfig, originalImages: OriginalImagesList, textures: ProcessedTextureList, parsedBuffers: Array<Buffer>, expectedImageCount: number, force: boolean, logger: Logger) {
@@ -38,7 +38,13 @@ export async function splitSingleLOD(l: number, modelName: string, outputFolder:
         for (let i = 0; i < expectedImageCount; i++) {
             const [inBuf, origHash] = originalImages[i];
             const [resBuf, resHash] = await resizeTexture(textures, origHash, texResizeOpt, !embedTextures, inBuf, logger);
-            const bufferViewIdx = gltf.images[i].bufferView;
+            const img = gltf.images[i];
+
+            if (img === undefined) {
+                throw new Error(`Unexpected missing image index ${i}`)
+            }
+
+            const bufferViewIdx = img.bufferView;
 
             if (bufferViewIdx === undefined) {
                 throw new Error('Unexpected image with no bufferView');

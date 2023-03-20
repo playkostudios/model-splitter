@@ -1,5 +1,5 @@
 export function deepClone<T>(val: T): T {
-    if (val === null || typeof val === 'object') {
+    if (val === null || typeof val !== 'object') {
         return val;
     } else if (Array.isArray(val)) {
         const outVal = [] as T;
