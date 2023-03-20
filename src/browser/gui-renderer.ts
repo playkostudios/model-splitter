@@ -145,10 +145,8 @@ function log(textOutput: HTMLDivElement, mType: ObjectLoggerMessageType, timesta
     textOutput.appendChild(msgContainer);
 }
 
-function logObj(textOutput: HTMLDivElement, messages: Array<ObjectLoggerMessage>) {
-    for (const message of messages) {
-        log(textOutput, message.type, message.time, message.data);
-    }
+function logObj(textOutput: HTMLDivElement, message: ObjectLoggerMessage) {
+    log(textOutput, message.type, message.time, message.data);
 }
 
 async function showModal(question: string, isQuestion: boolean): Promise<boolean> {
@@ -224,7 +222,6 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
         splitButton.disabled = true;
         log(textOutput, 'log', null, `Splitting model...`);
 
-        const messages = new Array<ObjectLoggerMessage>();
         let error: unknown;
         let hadError = false;
 
@@ -302,12 +299,13 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
             }
 
             // split model
+            const messageCallback = logObj.bind(null, textOutput);
             try {
                 await splitModel(inputPath, outputPath, lods, {
                     defaultEmbedTextures, defaultTextureResizing,
                     defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                     defaultQuantizeDequantizeMesh, force
-                }, messages);
+                }, messageCallback);
             } catch(err: unknown) {
                 assertCollisionError(err);
 
@@ -316,7 +314,7 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
                         defaultEmbedTextures, defaultTextureResizing,
                         defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                         defaultQuantizeDequantizeMesh, force: true
-                    }, messages);
+                    }, messageCallback);
                 } else {
                     throw err;
                 }
@@ -328,8 +326,6 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
         }
 
         // output messages
-        logObj(textOutput, messages);
-
         let message: string;
         if (hadError) {
             if (typeof error === 'object' && error !== null && 'message' in error) {

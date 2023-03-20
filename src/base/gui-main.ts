@@ -13,8 +13,8 @@ const gltfpack = require('gltfpack');
 gltfpack.init(readFileSync(__dirname + '/library.wasm'));
 
 // wrap splitModel and logger together
-async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions, messages: Array<ObjectLoggerMessage>): Promise<void> {
-    const logger = new ObjectLogger();
+async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions, messageCallback: (message: ObjectLoggerMessage) => void): Promise<void> {
+    const logger = new ObjectLogger(messageCallback);
 
     let error: unknown, hasError = false;
 
@@ -27,8 +27,6 @@ async function splitModel(inputModelPath: string, outputFolder: string, lods: LO
         error = err;
         hasError = true;
     }
-
-    messages.push(...logger.messages);
 
     if (hasError) {
         throw error;

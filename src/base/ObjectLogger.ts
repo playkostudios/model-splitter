@@ -22,25 +22,25 @@ export type ObjectLoggerMessage = ObjectLoggerStringMessage | ObjectLoggerErrorM
 
 /** The object logger; logs to a JS object. */
 export class ObjectLogger implements Logger {
-    messages = new Array<ObjectLoggerMessage>();
+    constructor(private messageCallback: (message: ObjectLoggerMessage) => void) {}
 
     debug(str: string) {
-        this.messages.push({ type: 'debug', data: str, time: Date.now() });
+        this.messageCallback({ type: 'debug', data: str, time: Date.now() });
     }
 
     log(str: string) {
-        this.messages.push({ type: 'log', data: str, time: Date.now() });
+        this.messageCallback({ type: 'log', data: str, time: Date.now() });
     }
 
     warn(str: string) {
-        this.messages.push({ type: 'warn', data: str, time: Date.now() });
+        this.messageCallback({ type: 'warn', data: str, time: Date.now() });
     }
 
     error(error: unknown) {
-        this.messages.push({ type: 'error', data: error, time: Date.now() });
+        this.messageCallback({ type: 'error', data: error, time: Date.now() });
     }
 
     errorString(str: string) {
-        this.messages.push({ type: 'errorString', data: str, time: Date.now() });
+        this.messageCallback({ type: 'errorString', data: str, time: Date.now() });
     }
 }
