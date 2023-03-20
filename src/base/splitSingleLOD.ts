@@ -34,8 +34,22 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
     const replacedBufferViews = new Map<number, Array<[bufferViewIdx: number, content: Buffer | null, contentHash: string, oldContentLen: number, oldContentOffset: number]>>();
     if (expectedImageCount > 0) {
         for (let i = 0; i < expectedImageCount; i++) {
+            logger.debug(`Resizing image ${i}`);
+
             const [inBuf, origHash] = originalImages[i];
-            const [resBuf, resHash] = await resizeTexture(textures, origHash, texResizeOpt, !embedTextures, inBuf, logger);
+
+            logger.debug(`  - input hash: ${origHash}`);
+            logger.debug(`  - options: ${texResizeOpt}`);
+            logger.debug(`  - will be embedded: ${embedTextures}`);
+
+            const [resBuf, resHash, wasCached] = await resizeTexture(textures, origHash, texResizeOpt, !embedTextures, inBuf, logger);
+
+            logger.debug(`  - output hash: ${resHash}`);
+
+            if (wasCached) {
+                logger.debug('  - (output was cached)');
+            }
+
             const img = gltf.images[i];
 
             if (img === undefined) {
@@ -49,7 +63,6 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
             }
 
             const bufferView = gltf.bufferViews[bufferViewIdx];
-            logger.debug(`${bufferView}`);
             const bufferIdx = bufferView.buffer;
             const bufferLen = bufferView.byteLength;
             const bufferOffset = bufferView.byteOffset ?? 0;
@@ -58,6 +71,7 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
             if (bufferViewList === undefined) {
                 bufferViewList = [];
                 replacedBufferViews.set(bufferIdx, bufferViewList);
+                logger.debug(`  - texture replaces buffer view ${bufferViewIdx} (buffer ${bufferIdx})`);
             }
 
             bufferViewList.push([bufferViewIdx, embedTextures ? resBuf : null, resHash, bufferLen, bufferOffset]);
@@ -66,11 +80,12 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
 
     // modify buffers
     for (const [bufferIdx, bufferViewList] of replacedBufferViews) {
+        logger.debug(`Modifying buffer ${bufferIdx}`);
+
         // get buffer views that belong to this buffer and that need to be
         // copied
         const ranges = new Array<[start: number, end: number]>;
 
-        logger.debug('ranges start');
         const bufferViewCount = gltf.bufferViews.length;
         for (let b = 0; b < bufferViewCount; b++) {
             let found = false;
@@ -88,8 +103,9 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
             const bufferView = gltf.bufferViews[b];
             if (bufferView.buffer === bufferIdx) {
                 const offset = bufferView.byteOffset ?? 0;
-                ranges.push([offset, offset + bufferView.byteLength]);
-                logger.debug(`${offset}, ${offset + bufferView.byteLength}`);
+                const end = offset + bufferView.byteLength;
+                ranges.push([offset, end]);
+                logger.debug(`  - range ${offset}-${end} (${bufferView.byteLength} bytes) will be kept`);
             }
         }
 
@@ -117,16 +133,22 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
         if (ranges.length === 0) {
             // buffer was nuked
             gaps.push([0, origBuffer.byteLength]);
+            logger.debug(`  - range ${0}-${origBuffer.byteLength} (${origBuffer.byteLength} bytes) will not be kept`);
         } else {
             // check gap in beginning and end
             const firstRange = ranges[0];
             if (firstRange[0] > 0) {
-                gaps.push([0, firstRange[0]]);
+                const len = firstRange[0];
+                gaps.push([0, len]);
+                logger.debug(`  - range ${0}-${len} (${len} bytes) will not be kept`);
             }
 
             const lastRange = ranges[ranges.length - 1];
             if (lastRange[1] !== origBuffer.byteLength) {
-                gaps.push([lastRange[1], origBuffer.byteLength - lastRange[1]]);
+                const start = lastRange[1];
+                const len = origBuffer.byteLength - lastRange[1];
+                gaps.push([start, len]);
+                logger.debug(`  - range ${start}-${start + len} (${len} bytes) will not be kept`);
             }
 
             // check gaps between ranges
@@ -134,12 +156,8 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
                 const offset = ranges[r - 1][1];
                 const len = ranges[r][0] - offset;
                 gaps.push([offset, len]);
+                logger.debug(`  - range ${offset}-${offset + len} (${len} bytes) will not be kept`);
             }
-        }
-
-        logger.debug('gaps start');
-        for (const gap of gaps) {
-            logger.debug(`${gap[0]}, ${gap[1]}`);
         }
 
         // make new buffer
@@ -147,6 +165,8 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
         for (const range of ranges) {
             newBufSize += range[1] - range[0];
         }
+
+        logger.debug(`  - buffer will be resized to ${newBufSize} bytes`);
 
         const newOffsets = new Array<number>();
         for (const [_bufferViewIdx, newContent, _hash, _oldContentLength, _oldContentOffset] of bufferViewList) {
@@ -157,21 +177,27 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
         }
 
         const newBuffer = Buffer.alloc(newBufSize);
+        logger.debug(`  - buffer created`);
+
         let head = 0;
         for (const range of ranges) {
             origBuffer.copy(newBuffer, head, ...range);
+            logger.debug(`  - copied range ${range[0]}-${range[1]} to ${head}`);
             head += range[1] - range[0];
         }
 
         for (const [_bufferViewIdx, newContent, _hash, _oldContentLength, _oldContentOffset] of bufferViewList) {
             if (newContent) {
                 newContent.copy(newBuffer, head);
+                logger.debug(`  - copied replacement buffer with ${newBuffer.byteLength} bytes to ${head}`);
                 head += newContent.byteLength;
             }
         }
 
         // apply gap offsets to existing bufferviews
-        for (const bufferView of gltf.bufferViews) {
+        for (let b = 0; b < gltf.bufferViews.length; b++) {
+            const bufferView = gltf.bufferViews[b];
+
             if (bufferView.buffer !== bufferIdx) {
                 continue;
             }
@@ -185,6 +211,7 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
             }
 
             bufferView.byteOffset = byteOffset;
+            logger.debug(`  - offset buffer view ${b} to ${byteOffset}`);
         }
 
         // update overridden bufferviews
@@ -192,14 +219,15 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
         for (let b = 0; b < bMax; b++) {
             const [bufferViewIdx, newContent, _hash, _oldContentLength, _oldContentOffset] = bufferViewList[b];
             const bufferView = gltf.bufferViews[bufferViewIdx];
-            logger.debug(`override bufferview ${bufferViewIdx}`);
 
             if (newContent === null) {
                 bufferView.byteLength = 0;
                 bufferView.byteOffset = 0;
+                logger.debug(`  - nuked buffer view ${bufferViewIdx}`);
             } else {
                 bufferView.byteLength = newContent.byteLength;
                 bufferView.byteOffset = newOffsets[b];
+                logger.debug(`  - updated buffer view ${bufferViewIdx} offset to ${newOffsets[b]} and size to ${newContent.byteLength}`);
             }
         }
 
@@ -207,10 +235,13 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
         const buffer = gltf.buffers[bufferIdx];
         buffer.uri = `data:application/octet-stream;base64,${newBuffer.toString('base64')}`;
         buffer.byteLength = newBuffer.byteLength;
+        logger.debug(`  - replaced buffer ${bufferIdx} URI`);
     }
 
     // handle external textures
     if (!embedTextures && gltf.images) {
+        logger.debug(`Cleaning up external textures from GLTF`);
+
         // get list of buffer views that were replaced with external
         // textures
         const externalBufferViews = new Map<number, string>();
@@ -218,7 +249,7 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
             for (const [bufferViewIdx, content, hash, _oldContentLength, _oldContentOffset] of bufferViewList) {
                 if (content === null) {
                     externalBufferViews.set(bufferViewIdx, hash);
-                    logger.debug(`marked bufferview ${bufferViewIdx} as external`);
+                    logger.debug(`  - buffer view ${bufferViewIdx} marked as external`);
                 }
             }
         }
@@ -236,8 +267,8 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
             const hash = externalBufferViews.get(bufferViewIdx);
             if (hash !== undefined) {
                 gltf.images.splice(i, 1);
+                logger.debug(`  - removed external image ${i} (hash ${hash})`);
                 externalImages.set(i, hash);
-                logger.debug(`marked image ${i} as external`);
             }
         }
 
@@ -252,8 +283,8 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
 
                 if (hash !== undefined) {
                     gltf.textures.splice(t, 1);
+                    logger.debug(`  - removed external texture ${t} (hash ${hash})`);
                     externalTextures.set(t, hash);
-                    logger.debug(`marked texture ${t} as external`);
                 } else {
                     if (texture.sampler !== undefined) {
                         dependedSamplers.add(texture.sampler);
@@ -270,7 +301,6 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
         if (gltf.materials) {
             for (let m = gltf.materials.length - 1; m >= 0; m--) {
                 const material = gltf.materials[m];
-                logger.debug(`checking material ${m}`);
 
                 // check if material depends on an external texture and
                 // store hash as reference in converted material
@@ -301,13 +331,11 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
                     const hash = externalTextures.get(textureInfo.index);
                     if (hash === undefined) {
                         hasEmbeddedTexture = true;
-                        logger.debug(`found embedded texture ${textureName}`);
 
                         // shift texture id
                         textureInfo.index = shiftID(textureInfo.index, externalTextures.keys());
                     } else {
                         hasExternalTexture = true;
-                        logger.debug(`found external texture ${textureName}`);
 
                         if (textureName !== null) {
                             convertedMaterial[textureName] = hash;
@@ -324,7 +352,7 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
                 }
 
                 if (!hasExternalTexture) {
-                    logger.debug(`material had no external textures`);
+                    logger.debug(`  - material ${m} does not depend on external texture. ignored`);
                     continue;
                 }
 
@@ -361,7 +389,7 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
                 convertedMaterialsMap.set(m, convertedMaterials.length);
                 convertedMaterials.push(convertedMaterial);
                 gltf.materials.splice(m, 1);
-                logger.debug(`material had external textures, converted to ${convertedMaterial}`);
+                logger.debug(`  - material ${m} removed; depends on external texture. added to converted materials list (converted material id ${convertedMaterials.length - 1})`);
             }
         }
 
@@ -381,6 +409,7 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
                         if (cmi === undefined) {
                             primitive.material = shiftID(primitive.material, convertedMaterialsMap.keys());
                         } else {
+                            logger.debug(`  - replaced material ${primitive.material} mesh ${mesh.name ?? '<<unnamed>>'} (primitive ${p}) with converted material ${cmi}`);
                             replacedMaterials.push([p, cmi]);
                             primitive.material = gltf.materials?.length ?? 0;
                             needDummyMaterial = true;
@@ -434,6 +463,7 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
                 if (!dependedSamplers.has(s)) {
                     deletedSamplers.add(s);
                     gltf.samplers.splice(s, 1);
+                    logger.debug(`  - removed unused sampler ${s}`);
                 }
             }
 
@@ -447,8 +477,6 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
             }
         }
     }
-
-    logger.debug('done, converting to glb')
 
     // override generator
     if (gltf.asset.generator === undefined || gltf.asset.generator === '') {
@@ -482,15 +510,16 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
         delete gltf.samplers;
     }
 
+    logger.debug(`Writing LOD to ${outPath}...`);
+
     // save as glb
     if (!force) {
         assertFreeFile(outPath);
     }
 
     const outGlbBuf = (await gltfToGlb(gltf)).glb;
-    logger.debug('done converting, saving')
     writeFileSync(outPath, outGlbBuf);
-    logger.debug('done saving, writing to meta')
+    logger.debug(`Done writing LOD`);
 
     // update metadata
     metadata.lods.push({
@@ -498,5 +527,6 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
         lodRatio: gltfpackArgCombos[gacIdx][0],
         bytes: statSync(outPath).size
     });
-    logger.debug('done writing to meta')
+
+    logger.debug(`Done updating metadata`);
 }

@@ -238,20 +238,24 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
         }
 
         const outPath = resolvePath(outputFolder, hash);
+        logger.debug(`Writing external texture ${outPath}...`);
 
         if (!force) {
             assertFreeFile(outPath);
         }
 
         writeFileSync(outPath, content);
+        logger.debug(`Done`);
     }
 
     // write metadata to final destination
     const outPath = resolvePath(outputFolder, `${modelName}.metadata.json`);
+    logger.debug(`Writing metadata file ${outPath}...`);
 
     if (!force) {
         assertFreeFile(outPath);
     }
 
     writeFileSync(outPath, JSON.stringify(metadata));
+    logger.debug(`All done`);
 }

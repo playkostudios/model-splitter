@@ -9,7 +9,7 @@ function resizeOptMatches(a: PackedResizeOption, b: PackedResizeOption) {
     return a === b || (a[0] === b[0] && a[1] === b[1] && (a[2] ?? '!') === (b[2] ?? '!'));
 }
 
-export function resizeTexture(textures: ProcessedTextureList, origHash: string, resizeOpt: PackedResizeOption, save: boolean, inBuf: Buffer, logger: Logger): Promise<[buffer: Buffer, hash: string]> {
+export function resizeTexture(textures: ProcessedTextureList, origHash: string, resizeOpt: PackedResizeOption, save: boolean, inBuf: Buffer, logger: Logger): Promise<[buffer: Buffer, hash: string, cached: boolean]> {
     return new Promise((resolve, reject) => {
         // check if this resize operation has already been done
         for (let i = 0; i < textures.length; i++) {
@@ -21,7 +21,7 @@ export function resizeTexture(textures: ProcessedTextureList, origHash: string, 
                         textures[i][3] = true;
                     }
 
-                    resolve([oBuffer, oHash]);
+                    resolve([oBuffer, oHash, true]);
                     return;
                 }
             }
@@ -48,14 +48,14 @@ export function resizeTexture(textures: ProcessedTextureList, origHash: string, 
 
                         logger.warn(`Resize option is equivalent to another resize option, but this is not obvious. Try to write resize options in a normalized way to minimise repeated work`);
                         oInputs.push([resizeOpt, origHash]);
-                        resolve([oBuffer, oHash]);
+                        resolve([oBuffer, oHash, false]);
                         return;
                     }
                 }
 
                 // none of the outputs match, add to processed textures list
                 textures.push([[[resizeOpt, origHash]], outHash, outBuf, save]);
-                resolve([outBuf, outHash]);
+                resolve([outBuf, outHash, false]);
             } else {
                 reject(err);
             }
