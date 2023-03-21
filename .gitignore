@@ -1,4 +1,5 @@
 node_modules/
+/input/
 /output/
 /example-project/deploy/
 /example-project/cache/
