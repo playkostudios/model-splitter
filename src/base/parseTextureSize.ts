@@ -1,5 +1,4 @@
 import type { PackedResizeOption, DefaultablePackedResizeOption } from './lib';
-import type { ResizeOption } from 'gm';
 
 export function parseTextureSize(inStr: string, allowDefault: false): PackedResizeOption;
 export function parseTextureSize(inStr: string, allowDefault: true): DefaultablePackedResizeOption;
@@ -14,7 +13,7 @@ export function parseTextureSize(inStr: string, allowDefault: boolean): Defaulta
         return 'keep';
     } else {
         let texSizeStr = inStr;
-        let option: ResizeOption = '!';
+        let option: '%' | '!' = '!';
         if (texSizeStr.endsWith('%') || texSizeStr.endsWith('!')) {
             const end = texSizeStr.length - 1;
             option = texSizeStr[end] as '%' | '!';

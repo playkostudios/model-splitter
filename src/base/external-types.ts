@@ -1,7 +1,6 @@
-import type { ResizeOption } from 'gm';
 import type { Logger } from './Logger';
 
-export type ConcreteResizeOption = [width: number, height: number, type?: ResizeOption];
+export type ConcreteResizeOption = [width: number, height: number, type?: '%' | '!'];
 export type PackedResizeOption = ConcreteResizeOption | 'keep';
 export type DefaultablePackedResizeOption = PackedResizeOption | 'default';
 

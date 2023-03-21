@@ -1,7 +1,7 @@
 {
   "name": "model-splitter",
   "version": "2.2.0",
-  "description": "Splits a model into multiple models with different LOD levels and downscales textures",
+  "description": "Splits a model into multiple models with different LOD levels and downscales textures. For use with Wonderland Engine",
   "main": "lib/index.cjs.js",
   "exports": "./lib/index.cjs.js",
   "types": "./lib/index.d.ts",
@@ -18,9 +18,9 @@
     "copy-nwjs-gltfpack-blobs": "shx cp ./node_modules/gltfpack/library.wasm ./nwjs-out/",
     "copy-third-party-blobs": "pnpm run copy-cesium-blobs && pnpm run copy-gltfpack-blobs && pnpm run copy-nwjs-cesium-blobs && pnpm run copy-nwjs-gltfpack-blobs",
     "build-runtime-lib": "tsc -p ./tsconfig-browser.json --noEmit && esbuild --minify --bundle --sourcemap --target=es6 --platform=browser --format=esm --outfile=lib/runtime-lib.esm.js src/browser/runtime-lib.ts",
-    "build-lib": "tsc -p ./tsconfig-base.json --noEmit && esbuild --minify --bundle --sourcemap --target=es6 --platform=node --format=cjs --outfile=lib/index.cjs.js src/base/lib.ts",
-    "build-cli": "tsc -p ./tsconfig-base.json --noEmit && esbuild --minify --bundle --sourcemap --target=es6 --platform=node --format=iife --banner:js='#!/usr/bin/env node' --outfile=lib/cli.js src/base/cli.ts && shx chmod +x ./lib/cli.js",
-    "build-gui": "tsc -p ./tsconfig-base.json --noEmit && esbuild --minify --bundle --target=es6 --platform=node --format=cjs --outfile=nwjs-out/main-bundle.js src/base/gui-main.ts && tsc -p ./tsconfig-browser.json --noEmit && esbuild --external:./main-bundle.js --minify --bundle --target=es6 --platform=browser --format=iife --outfile=nwjs-out/renderer-bundle.js src/browser/gui-renderer.ts",
+    "build-lib": "tsc -p ./tsconfig-base.json --noEmit && esbuild --minify --bundle --sourcemap --target=es6 --platform=node --format=cjs --external:sharp --outfile=lib/index.cjs.js src/base/lib.ts",
+    "build-cli": "tsc -p ./tsconfig-base.json --noEmit && esbuild --minify --bundle --sourcemap --target=es6 --platform=node --format=iife --external:sharp --banner:js='#!/usr/bin/env node' --outfile=lib/cli.js src/base/cli.ts && shx chmod +x ./lib/cli.js",
+    "build-gui": "tsc -p ./tsconfig-base.json --noEmit && esbuild --minify --bundle --target=es6 --platform=node --format=cjs --external:sharp --outfile=nwjs-out/main-bundle.js src/base/gui-main.ts && tsc -p ./tsconfig-browser.json --noEmit && esbuild --external:./main-bundle.js --minify --bundle --target=es6 --platform=browser --format=iife --outfile=nwjs-out/renderer-bundle.js src/browser/gui-renderer.ts",
     "pkg-cli": "pkg lib/cli.js --config cli-pkg-config.json --compress GZip",
     "pkg-gui-linux": "nwbuild ./nwjs-out/* --mode=build --version=latest --flavor=normal --arch=x64 --outDir=./nwjs-pkg-linux --platform=linux && jszip-cli add --output ./model-splitter-gui-linux.zip ./nwjs-pkg-linux/*",
     "pkg-gui-win": "nwbuild ./nwjs-out/* --mode=build --version=latest --flavor=normal --arch=x64 --outDir=./nwjs-pkg-win --platform=win && jszip-cli add --output ./model-splitter-gui-win.zip ./nwjs-pkg-win/*",
@@ -41,7 +41,7 @@
     "Rafael Fernandes <rafael@playko.com>",
     "Playko (https://www.playko.com/)"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "bugs": {
     "url": "https://github.com/playkostudios/model-splitter/issues"
@@ -49,10 +49,10 @@
   "homepage": "https://github.com/playkostudios/model-splitter#readme",
   "devDependencies": {
     "@ffflorian/jszip-cli": "^3.1.9",
-    "@types/gm": "^1.25.0",
     "@types/node": "^18.14.6",
     "@types/node-notifier": "^8.0.2",
     "@types/nw.js": "^0.13.16",
+    "@types/sharp": "^0.31.1",
     "@typescript-eslint/eslint-plugin": "^5.55.0",
     "@typescript-eslint/parser": "^5.55.0",
     "@wonderlandengine/api": "0.9.4",
@@ -66,10 +66,10 @@
     "glob": "^8.1.0",
     "gltf-pipeline": "^4.0.2",
     "gltfpack": "^0.18.0",
-    "gm": "^1.25.0",
     "node-notifier": "^10.0.1",
     "nw-builder": "4.1.0-beta.3",
     "pkg": "^5.8.0",
+    "sharp": "^0.31.3",
     "shx": "^0.3.4",
     "typescript": "^4.9.5"
   }

@@ -4,6 +4,12 @@ Splits a model into multiple models with different LOD levels and downscales
 textures. Textures can be embedded in the model, or stored separately alongside
 a metadata JSON file, which needs to be parsed with a custom parser.
 
+This is only meant to be used with Wonderland Engine, and with a custom loader.
+A lot of the features that exist in this tool are to address current limitations
+in the engine. Do not expect support for other engines. For other engines it's
+much better to just use `gltfpack` separately for each LOD, which will also give
+you Draco and KTX2 compression.
+
 There are 2 versions of the tool:
 - CLI: run the tool from the terminal. Useful for automating LOD generation in scripts
 - GUI: run the tool from a graphical user interface. Useful if you want to generate LODs for a small amount of models manually, or don't like CLI
@@ -109,6 +115,30 @@ Download a windows binary from the
 using the GUI version, extract the zip (`model-splitter-gui-win.zip`) and run
 `model-splitter-gui.exe`.
 
-Note that GraphicsMagick needs to be installed if texture resizing is done. To
-install GraphicsMagick, follow the instructions in the
-[official website](http://www.graphicsmagick.org/download.html).
+## License
+
+This project is licensed under the MIT license (see the LICENSE file)
+
+This project uses the following open-source projects:
+- [@ffflorian/jszip-cli](https://github.com/ffflorian/node-packages/tree/main) licensed under the GPL 3.0 license
+- [@typescript-eslint/eslint-plugin](https://github.com/typescript-eslint/typescript-eslint) licensed under the MIT license
+- [@typescript-eslint/parser](https://github.com/typescript-eslint/typescript-eslint) licensed under the BSD 2-Clause license
+- [@wonderlandengine/api](https://www.npmjs.com/package/@wonderlandengine/api) licensed under the MIT license
+- [@wonderlandengine/components](https://www.npmjs.com/package/@wonderlandengine/components) licensed under the MIT license
+- [babylonjs-gltf2interface](https://www.babylonjs.com/) licensed under the Apache 2.0 license
+- [cesium](http://cesium.com/cesiumjs/) licensed under the Apache 2.0 license
+- [colors](https://github.com/Marak/colors.js) licensed under the MIT license
+- [concurrently](https://github.com/open-cli-tools/concurrently#readme) licensed under the MIT license
+- [data-uri-to-buffer](https://github.com/TooTallNate/node-data-uri-to-buffer) licensed under the MIT license
+- [DefinitelyTyped](http://definitelytyped.github.io/) licensed under the MIT license
+- [esbuild](https://github.com/evanw/esbuild) licensed under the MIT license
+- [eslint](https://github.com/eslint/eslint) licensed under the MIT license
+- [glob](https://github.com/isaacs/node-glob#readme) licensed under the ISC license
+- [gltf-pipeline](https://github.com/CesiumGS/gltf-pipeline) licensed under the Apache 2.0 license
+- [gltfpack](https://github.com/zeux/meshoptimizer) licensed under the MIT license
+- [node-notifier](https://github.com/mikaelbr/node-notifier#readme) licensed under the MIT license
+- [nw-builder](https://github.com/nwutils/nw-builder) licensed under the MIT license
+- [pkg](https://github.com/vercel/pkg#readme) licensed under the MIT license
+- [sharp](https://github.com/lovell/sharp) licensed under the Apache 2.0 license
+- [shx](https://github.com/shelljs/shx#readme) licensed under the MIT license
+- [typescript](https://github.com/Microsoft/TypeScript) licensed under the Apache 2.0 license
