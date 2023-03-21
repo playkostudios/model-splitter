@@ -29,7 +29,7 @@
     "build-all": "pnpm run build-runtime-lib && pnpm run build-lib && pnpm run build-cli && pnpm run build-gui",
     "pkg-all": "pnpm run pkg-cli && pnpm run pkg-gui",
     "build-pkg-all": "pnpm run clean && pnpm run copy-third-party-blobs && pnpm run build-all && pnpm run pkg-all",
-    "dev-gui": "concurrently 'esbuild --watch --bundle --sourcemap --target=es6 --platform=node --format=cjs --outfile=nwjs-out/main-bundle.js src/base/gui-main.ts' 'esbuild --external:./main-bundle.js --watch --bundle --sourcemap --target=es6 --platform=browser --format=iife --outfile=nwjs-out/renderer-bundle.js src/browser/gui-renderer.ts' 'cd nwjs-out; nw-sdk .'"
+    "dev-gui": "concurrently 'esbuild --watch --bundle --sourcemap --target=es6 --platform=node --format=cjs --external:sharp --outfile=nwjs-out/main-bundle.js src/base/gui-main.ts' 'esbuild --external:./main-bundle.js --watch --bundle --sourcemap --target=es6 --platform=browser --format=iife --outfile=nwjs-out/renderer-bundle.js src/browser/gui-renderer.ts' 'cd nwjs-out; nw-sdk .'"
   },
   "files": [
     "lib"

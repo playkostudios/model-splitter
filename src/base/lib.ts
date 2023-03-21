@@ -117,9 +117,11 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
     }
 
     // convert model to a format usable by wonderland engine
+    logger.debug('Converting to format usable by Wonderland Engine with glTF-Transform...');
     const wlefiedModel = await wlefyModel(inputModelPath);
 
     // run gltfpack
+    logger.debug('Compressing models with gltfpack...');
     const gacCount = gltfpackArgCombos.length;
     const gltfpackOutputs = new Array<IGLTF>(gacCount);
     const gltfpackPromises = new Array<Promise<void>>();
@@ -133,6 +135,7 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
 
     // verify gltfpack outputs the same amount of images, that the images use
     // bufferViews, and parse the buffers where the images are
+    logger.debug('Verifying gltfpack image counts...');
     const gltfFirst = gltfpackOutputs[0];
     const expectedImageCount = gltfFirst?.images?.length ?? 0;
     const parsedBuffers = new Array<Buffer>();
@@ -172,6 +175,7 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
     }
 
     // extract original images
+    logger.debug('Reading original images...');
     const textures: ProcessedTextureList = [];
     const originalImages: OriginalImagesList = [];
     if (expectedImageCount > 0) {
@@ -205,6 +209,7 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
     }
 
     // clone packed GLTFs when necessary
+    logger.debug('Cloning GLTFs...');
     const gltfs = new Array<IGLTF>(lodCount);
     const gltfpackVisited = new Set<number>();
 
