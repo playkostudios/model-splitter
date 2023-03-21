@@ -130,11 +130,13 @@ This project uses the following open-source projects:
 - [colors](https://github.com/Marak/colors.js) licensed under the MIT license
 - [concurrently](https://github.com/open-cli-tools/concurrently#readme) licensed under the MIT license
 - [data-uri-to-buffer](https://github.com/TooTallNate/node-data-uri-to-buffer) licensed under the MIT license
+- [draco3dgltf](https://github.com/google/draco#readme) licensed under the Apache 2.0 license
 - [DefinitelyTyped](http://definitelytyped.github.io/) licensed under the MIT license
 - [esbuild](https://github.com/evanw/esbuild) licensed under the MIT license
 - [eslint](https://github.com/eslint/eslint) licensed under the MIT license
 - [glob](https://github.com/isaacs/node-glob#readme) licensed under the ISC license
 - [gltf-pipeline](https://github.com/CesiumGS/gltf-pipeline) licensed under the Apache 2.0 license
+- [glTF-Transform](https://gltf-transform.donmccurdy.com/) licensed under the MIT license
 - [gltfpack](https://github.com/zeux/meshoptimizer) licensed under the MIT license
 - [node-notifier](https://github.com/mikaelbr/node-notifier#readme) licensed under the MIT license
 - [nw-builder](https://github.com/nwutils/nw-builder) licensed under the MIT license

@@ -82,7 +82,7 @@ async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: 
     return output;
 }
 
-export function simplifyModel(modelBuffer: Buffer, gltfpackArgCombos: Array<GltfpackArgCombo>, gltfpackOutputs: Array<IGLTF>, gacIdx: number, logger: Logger) {
+export function simplifyModel(modelBuffer: Uint8Array, gltfpackArgCombos: Array<GltfpackArgCombo>, gltfpackOutputs: Array<IGLTF>, gacIdx: number, logger: Logger) {
     return new Promise<void>((resolve, reject) => {
         gltfpackPass(modelBuffer, false, ...gltfpackArgCombos[gacIdx], logger).then(buf => {
             return glbToGltf(buf);

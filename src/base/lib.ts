@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, statSync, existsSync } from 'node:fs';
 import { basename, extname, resolve as resolvePath } from 'node:path';
 import { ConsoleLogger } from './ConsoleLogger';
 import { splitSingleLOD } from './splitSingleLOD';
@@ -12,6 +12,7 @@ import type { IGLTF, IImage } from 'babylonjs-gltf2interface';
 import type { Metadata } from './output-types';
 import type { GltfpackArgCombo, OriginalImagesList, ParsedLODConfigList, ProcessedTextureList } from './internal-types';
 import type { LODConfigList, PackedResizeOption, SplitModelOptions } from './external-types';
+import { wlefyModel } from './wlefyModel';
 
 export * from './ModelSplitterError';
 export * from './external-types';
@@ -115,15 +116,17 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
         }
     }
 
+    // convert model to a format usable by wonderland engine
+    const wlefiedModel = await wlefyModel(inputModelPath);
+
     // run gltfpack
     const gacCount = gltfpackArgCombos.length;
-    const origInputModel = readFileSync(inputModelPath);
     const gltfpackOutputs = new Array<IGLTF>(gacCount);
     const gltfpackPromises = new Array<Promise<void>>();
 
     for (let i = 0; i < gacCount; i++) {
         const gacIdx = i;
-        gltfpackPromises.push(simplifyModel(origInputModel, gltfpackArgCombos, gltfpackOutputs, gacIdx, logger));
+        gltfpackPromises.push(simplifyModel(wlefiedModel, gltfpackArgCombos, gltfpackOutputs, gacIdx, logger));
     }
 
     await Promise.all(gltfpackPromises);

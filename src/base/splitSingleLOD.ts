@@ -1,4 +1,5 @@
 const { gltfToGlb } = require('gltf-pipeline');
+import { VERSION } from '@gltf-transform/core';
 
 import { version } from '../../package.json';
 import { EXTENSION_NAME } from './extension-name';
@@ -479,11 +480,12 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
     }
 
     // override generator
-    if (gltf.asset.generator === undefined || gltf.asset.generator === '') {
-        gltf.asset.generator = `model-splitter ${version}`;
-    } else {
-        gltf.asset.generator = `model-splitter ${version}, ${gltf.asset.generator}`;
+    let generatorSuffix = '';
+    if (gltf.asset.generator !== undefined && gltf.asset.generator !== '') {
+        generatorSuffix = `, ${gltf.asset.generator}`;
     }
+
+    gltf.asset.generator = `model-splitter ${version} (glTF-Transform ${VERSION}, gltf-pipeline${generatorSuffix})`;
 
     // remove empty entities
     if (gltf.images.length === 0) {
