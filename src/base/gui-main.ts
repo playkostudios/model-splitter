@@ -4,17 +4,23 @@ import { ObjectLogger } from './ObjectLogger';
 import { splitModel as _splitModel } from './lib';
 // expose node-notifier's notify function
 const { notify } = require('node-notifier');
+const gltfpack = require('gltfpack');
 
 import type { ObjectLoggerMessage } from './ObjectLogger';
 import type { LODConfigList, SplitModelOptions } from './lib';
 
-// XXX gltfpack is not auto-initialized because nw.js contexts are weird
-const gltfpack = require('gltfpack');
-gltfpack.init(readFileSync(__dirname + '/library.wasm'));
-
 // wrap splitModel and logger together
+let gltfpackInitialized = false;
 async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions, messageCallback: (message: ObjectLoggerMessage) => void): Promise<void> {
     const logger = new ObjectLogger(messageCallback);
+
+    if (!gltfpackInitialized) {
+        // XXX gltfpack is not auto-initialized because nw.js contexts are weird
+        logger.debug('gltfpack not initialized yet. Initializing...');
+        gltfpack.init(readFileSync(__dirname + '/library.wasm'));
+        gltfpackInitialized = true;
+        logger.debug('gltfpack initialized');
+    }
 
     let error: unknown, hasError = false;
 
