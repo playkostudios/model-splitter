@@ -4,11 +4,11 @@ const { glbToGltf } = require('gltf-pipeline');
 import { readFileSync } from 'node:fs';
 import { InvalidInputError } from './ModelSplitterError';
 
-import type { Logger } from './Logger';
+import type { ILogger } from '@gltf-transform/core';
 import type { GltfpackArgCombo } from './internal-types';
 import type { IGLTF } from 'babylonjs-gltf2interface';
 
-async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, aggressive: boolean, logger: Logger): Promise<Uint8Array> {
+async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, aggressive: boolean, logger: ILogger): Promise<Uint8Array> {
     // build argument list
     const inputPath = `argument://input-model.gl${isGLTF ? 'tf' : 'b'}`;
     const outputPath = 'argument://output-model.glb';
@@ -66,11 +66,11 @@ async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: 
 
             const prefixLine = `[gltfpack] ${line}`;
             if (line.startsWith('Error')) {
-                logger.errorString(prefixLine);
+                logger.error(prefixLine);
             } else if (line.startsWith('Warning')) {
                 logger.warn(prefixLine);
             } else {
-                logger.log(prefixLine);
+                logger.info(prefixLine);
             }
         }
     }
@@ -82,7 +82,7 @@ async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: 
     return output;
 }
 
-export function simplifyModel(modelBuffer: Uint8Array, gltfpackArgCombos: Array<GltfpackArgCombo>, gltfpackOutputs: Array<IGLTF>, gacIdx: number, logger: Logger) {
+export function simplifyModel(modelBuffer: Uint8Array, gltfpackArgCombos: Array<GltfpackArgCombo>, gltfpackOutputs: Array<IGLTF>, gacIdx: number, logger: ILogger) {
     return new Promise<void>((resolve, reject) => {
         gltfpackPass(modelBuffer, false, ...gltfpackArgCombos[gacIdx], logger).then(buf => {
             return glbToGltf(buf);

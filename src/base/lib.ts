@@ -1,22 +1,21 @@
-import { writeFileSync, mkdirSync, statSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, statSync, existsSync, readFileSync } from 'node:fs';
 import { basename, extname, resolve as resolvePath } from 'node:path';
-import { ConsoleLogger } from './ConsoleLogger';
 import { splitSingleLOD } from './splitSingleLOD';
 import { InvalidInputError } from './ModelSplitterError';
 import { assertFreeFile } from './assertFreeFile';
 import { simplifyModel } from './simplifyModel';
 import { bufferHash, getProcessedTexture, parseBuffer } from './caching';
 import { deepClone } from './deepClone';
+import { ConsoleLogger } from './ConsoleLogger';
 
 import type { IGLTF, IImage } from 'babylonjs-gltf2interface';
 import type { Metadata } from './output-types';
 import type { GltfpackArgCombo, OriginalImagesList, ParsedLODConfigList, ProcessedTextureList } from './internal-types';
 import type { LODConfigList, PackedResizeOption, SplitModelOptions } from './external-types';
-import { wlefyModel } from './wlefyModel';
+// import { wlefyModel } from './wlefyModel';
 
 export * from './ModelSplitterError';
 export * from './external-types';
-export * from './LogLevel';
 
 export async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
     // parse options and get defaults

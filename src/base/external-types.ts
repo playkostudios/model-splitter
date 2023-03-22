@@ -1,4 +1,4 @@
-import type { Logger } from './Logger';
+import type { ILogger } from '@gltf-transform/core';
 
 export type ConcreteResizeOption = [width: number, height: number, type?: '%' | '!'];
 export type PackedResizeOption = ConcreteResizeOption | 'keep';
@@ -22,5 +22,5 @@ export interface SplitModelOptions {
     defaultMergeMaterials?: boolean;
     defaultAggressive?: boolean;
     force?: boolean;
-    logger?: Logger;
+    logger?: ILogger;
 }

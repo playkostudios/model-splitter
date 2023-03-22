@@ -1,7 +1,8 @@
 import { basename } from 'node:path';
-import { splitModel, CollisionError, InvalidInputError, LogLevel } from './lib';
+import { splitModel, CollisionError, InvalidInputError } from './lib';
 import { version } from '../../package.json';
 import { parseTextureSize } from './parseTextureSize';
+import { Verbosity } from '@gltf-transform/core';
 import { ConsoleLogger } from './ConsoleLogger';
 
 import type { LODConfigList, PackedResizeOption, DefaultablePackedResizeOption } from './lib';
@@ -49,7 +50,7 @@ async function main() {
     let defaultMergeMaterials = true;
     let textureSizeSpecified = false;
     let defaultAggressive = false;
-    let logLevel = null;
+    let logLevel: Verbosity | null = null;
     const lods: LODConfigList = [];
 
     try {
@@ -68,16 +69,16 @@ async function main() {
             } else if (expectLogLevel) {
                 expectLogLevel = false;
 
-                if (arg === 'none') {
-                    logLevel = LogLevel.None;
-                } else if (arg === 'error') {
-                    logLevel = LogLevel.Error;
-                } else if (arg === 'warning') {
-                    logLevel = LogLevel.Warning;
-                } else if (arg === 'log') {
-                    logLevel = LogLevel.Log;
-                } else if (arg === 'debug') {
-                    logLevel = LogLevel.Debug;
+                if (arg === 'none' || arg === 'silent') {
+                    logLevel = Verbosity.SILENT;
+                } else if (arg === 'error' || arg === 'err') {
+                    logLevel = Verbosity.ERROR;
+                } else if (arg === 'warning' || arg === 'warn') {
+                    logLevel = Verbosity.WARN;
+                } else if (arg === 'info' || arg === 'log') {
+                    logLevel = Verbosity.INFO;
+                } else if (arg === 'debug' || arg === 'verbose') {
+                    logLevel = Verbosity.DEBUG;
                 } else {
                     throw new Error(`Invalid log level "${arg}"`);
                 }
@@ -217,7 +218,7 @@ async function main() {
         process.exit(1);
     }
 
-    const logger = new ConsoleLogger(logLevel ?? LogLevel.Log);
+    const logger = new ConsoleLogger(logLevel ?? Verbosity.INFO);
 
     try {
         await splitModel(inputPath, outputFolder, lods, {

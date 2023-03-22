@@ -3,13 +3,13 @@ import sharp from 'sharp';
 
 import type { PackedResizeOption } from './external-types';
 import type { ProcessedTextureList } from './internal-types';
-import type { Logger } from './Logger';
+import type { ILogger } from '@gltf-transform/core';
 
 function resizeOptMatches(a: PackedResizeOption, b: PackedResizeOption) {
     return a === b || (a[0] === b[0] && a[1] === b[1]);
 }
 
-export async function resizeTexture(textures: ProcessedTextureList, origHash: string, resizeOpt: PackedResizeOption, save: boolean, inBuf: Buffer, logger: Logger): Promise<[buffer: Buffer, hash: string, cached: boolean]> {
+export async function resizeTexture(textures: ProcessedTextureList, origHash: string, resizeOpt: PackedResizeOption, save: boolean, inBuf: Buffer, logger: ILogger): Promise<[buffer: Buffer, hash: string, cached: boolean]> {
     // normalize to 'keep', or percentage-based resize operations to absolute
     // dimensions
     let inSharp: sharp.Sharp | undefined;

@@ -1,5 +1,5 @@
 import { parseTextureSize } from '../base/parseTextureSize';
-import { LogLevel } from '../base/LogLevel';
+import { Verbosity } from '@gltf-transform/core';
 
 import type { LODConfigList } from '../base/external-types';
 import type { ModelSplitterError, CollisionError } from '../base/ModelSplitterError';
@@ -123,11 +123,7 @@ function reorderLODRow(lodList: HTMLDivElement, lodListHelp: HTMLParagraphElemen
     updateLODRows(lodList, lodListHelp);
 }
 
-function log(textOutput: HTMLDivElement, logLevel: LogLevel, mType: ObjectLoggerMessageType, timestamp: number | null, ...messages: Array<unknown>) {
-    if (mType === 'errorString') {
-        mType = 'error';
-    }
-
+function log(textOutput: HTMLDivElement, logLevel: Verbosity, mType: ObjectLoggerMessageType, timestamp: number | null, ...messages: Array<unknown>) {
     let timestampStr: string;
     if (timestamp === null) {
         timestampStr = new Date().toISOString();
@@ -145,14 +141,14 @@ function log(textOutput: HTMLDivElement, logLevel: LogLevel, mType: ObjectLogger
     msgContainer.appendChild(msgTimestamp);
     msgContainer.append(messages.join(' '));
 
-    if (logLevel < parseMsgTypeClass(msgTypeClass)) {
+    if (logLevel > parseMsgTypeClass(msgTypeClass)) {
         msgContainer.classList.add('hidden');
     }
 
     textOutput.appendChild(msgContainer);
 }
 
-function logObj(textOutput: HTMLDivElement, logLevel: LogLevel, message: ObjectLoggerMessage) {
+function logObj(textOutput: HTMLDivElement, logLevel: Verbosity, message: ObjectLoggerMessage) {
     log(textOutput, logLevel, message.type, message.time, message.data);
 }
 
@@ -185,28 +181,28 @@ function makeDropdown(options: Array<string>): HTMLSelectElement {
     return sel;
 }
 
-function parseMsgTypeClass(msgTypeClass: string): LogLevel {
+function parseMsgTypeClass(msgTypeClass: string): Verbosity {
     if (msgTypeClass === 'msg-error') {
-        return LogLevel.Error;
+        return Verbosity.ERROR;
     } else if (msgTypeClass === 'msg-warn') {
-        return LogLevel.Warning;
-    } else if (msgTypeClass === 'msg-log') {
-        return LogLevel.Log;
+        return Verbosity.WARN;
+    } else if (msgTypeClass === 'msg-info') {
+        return Verbosity.INFO;
     } else {
-        return LogLevel.Debug;
+        return Verbosity.DEBUG;
     }
 }
 
-function parseLogLevel(select: HTMLSelectElement): LogLevel {
+function parseLogLevel(select: HTMLSelectElement): Verbosity {
     const val = select.value;
     if (val === 'error') {
-        return LogLevel.Error;
+        return Verbosity.ERROR;
     } else if (val === 'warning') {
-        return LogLevel.Warning;
-    } else if (val === 'log') {
-        return LogLevel.Log;
+        return Verbosity.WARN;
+    } else if (val === 'info') {
+        return Verbosity.INFO;
     } else {
-        return LogLevel.Debug;
+        return Verbosity.DEBUG;
     }
 }
 
@@ -246,17 +242,17 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
         logLevel = parseLogLevel(logLevelSelect);
 
         for (const message of Array.from(textOutput.children)) {
-            let msgTypeClass = LogLevel.Debug;
+            let msgTypeClass = Verbosity.DEBUG;
             for (const msgClass of Array.from(message.classList)) {
                 if (msgClass.startsWith('msg-')) {
                     msgTypeClass = parseMsgTypeClass(msgClass);
                 }
             }
 
-            if (logLevel >= msgTypeClass) {
-                message.classList.remove('hidden');
-            } else {
+            if (logLevel > msgTypeClass) {
                 message.classList.add('hidden');
+            } else {
+                message.classList.remove('hidden');
             }
         }
     });
@@ -273,7 +269,7 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
 
     splitButton.addEventListener('click', async () => {
         splitButton.disabled = true;
-        log(textOutput, logLevel, 'log', null, `Splitting model...`);
+        log(textOutput, logLevel, 'info', null, `Splitting model...`);
 
         let error: unknown;
         let hadError = false;
@@ -385,9 +381,9 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
         let message: string;
         if (hadError) {
             if (typeof error === 'object' && error !== null && 'message' in error) {
-                log(textOutput, logLevel, 'errorString', null, error.message);
+                log(textOutput, logLevel, 'error', null, error.message);
             } else {
-                log(textOutput, logLevel, 'error', null, error);
+                log(textOutput, logLevel, 'error', null, `${error}`);
             }
 
             message = 'Failed to split model';
@@ -395,7 +391,7 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
             message = 'Done splitting model';
         }
 
-        log(textOutput, logLevel, 'log', null, message);
+        log(textOutput, logLevel, 'info', null, message);
 
         if (!document.hasFocus()) {
             notify({ title: 'model-splitter', message });
@@ -525,7 +521,7 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
     // remove loading message and show UI
     loadPara.parentElement?.removeChild(loadPara);
     main.style.display = '';
-    log(textOutput, logLevel, 'log', null, 'Initialised model-splitter GUI');
+    log(textOutput, logLevel, 'info', null, 'Initialised model-splitter GUI');
 }
 
 async function setupTool() {

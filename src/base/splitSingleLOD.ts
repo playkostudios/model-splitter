@@ -12,9 +12,9 @@ import { parseBuffer } from './caching';
 import type { IGLTF, ITextureInfo, MaterialAlphaMode } from 'babylonjs-gltf2interface';
 import type { ConvertedMaterial, ConvertedMaterialTextureName, Metadata } from './output-types';
 import type { GltfpackArgCombo, OriginalImagesList, ParsedLODConfig, ProcessedTextureList } from './internal-types';
-import type { Logger } from './Logger';
+import type { ILogger } from '@gltf-transform/core';
 
-export async function splitSingleLOD(outName: string, outPath: string, metadata: Metadata, gltfpackArgCombos: Array<GltfpackArgCombo>, gltf: IGLTF, lodOptions: ParsedLODConfig, originalImages: OriginalImagesList, textures: ProcessedTextureList, parsedBuffers: Array<Buffer>, expectedImageCount: number, force: boolean, logger: Logger) {
+export async function splitSingleLOD(outName: string, outPath: string, metadata: Metadata, gltfpackArgCombos: Array<GltfpackArgCombo>, gltf: IGLTF, lodOptions: ParsedLODConfig, originalImages: OriginalImagesList, textures: ProcessedTextureList, parsedBuffers: Array<Buffer>, expectedImageCount: number, force: boolean, logger: ILogger) {
     const [gacIdx, texResizeOpt, embedTextures] = lodOptions;
     // normalize gltf object
     if (!gltf.images) {

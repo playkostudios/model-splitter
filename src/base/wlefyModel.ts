@@ -2,10 +2,15 @@ import { NodeIO } from '@gltf-transform/core';
 import { resample, prune, dedup, dequantize, metalRough } from '@gltf-transform/functions';
 import { KHRONOS_EXTENSIONS } from '@gltf-transform/extensions';
 import draco3d from 'draco3dgltf';
+import { PrefixedLogger } from './PrefixedLogger';
 
-export async function wlefyModel(inputModelPath: string): Promise<Uint8Array> {
+import type { ILogger } from '@gltf-transform/core';
+
+export async function wlefyModel(inputModelPath: string, logger: ILogger): Promise<Uint8Array> {
     // read model
     const io = new NodeIO();
+    io.setLogger(new PrefixedLogger('[glTF-Transform] ', logger));
+    io.setAllowHTTP(false);
     io.registerExtensions(KHRONOS_EXTENSIONS);
     io.registerDependencies({
         'draco3d.decoder': await draco3d.createDecoderModule(),
