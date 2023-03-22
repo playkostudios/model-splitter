@@ -24,7 +24,7 @@ async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: 
 
     if (lodRatio < 1) {
         if (lodRatio <= 0) {
-            throw new InvalidInputError('LOD levels must be greater than 0');
+            throw InvalidInputError.fromDesc('LOD levels must be greater than 0');
         }
 
         args.push('-si', `${lodRatio}`);

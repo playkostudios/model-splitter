@@ -29,11 +29,11 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
 
     // verify that input model exists
     if (!existsSync(inputModelPath)) {
-        throw new InvalidInputError(`Input path "${inputModelPath}" does not exist`);
+        throw InvalidInputError.fromDesc(`Input path "${inputModelPath}" does not exist`);
     }
 
     if (!statSync(inputModelPath).isFile()) {
-        throw new InvalidInputError(`Input path "${inputModelPath}" is not a file`);
+        throw InvalidInputError.fromDesc(`Input path "${inputModelPath}" is not a file`);
     }
 
     // make final LOD configs with defaults applied, and verify validity
@@ -86,14 +86,14 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
     }
 
     if (lodsParsed.length === 0) {
-        throw new InvalidInputError('Nothing to do');
+        throw InvalidInputError.fromDesc('Nothing to do');
     }
 
     // make output folder if needed, or verify that it's a folder
     if (existsSync(outputFolder)) {
         // verify that the output path really is a folder
         if (!statSync(outputFolder).isDirectory()) {
-            throw new InvalidInputError(`Output path "${outputFolder}" is not a directory`);
+            throw InvalidInputError.fromDesc(`Output path "${outputFolder}" is not a directory`);
         }
     } else {
         mkdirSync(outputFolder, { recursive: true }) as string;
@@ -117,7 +117,7 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
 
     // convert model to a format usable by wonderland engine
     logger.debug('Converting to format usable by Wonderland Engine with glTF-Transform...');
-    const wlefiedModel = await wlefyModel(inputModelPath);
+    const wlefiedModel = await wlefyModel(inputModelPath, logger);
 
     // run gltfpack
     logger.debug('Compressing models with gltfpack...');

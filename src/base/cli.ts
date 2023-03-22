@@ -112,6 +112,10 @@ async function main() {
                     throw new Error('Log level can only be specified once');
                 }
             } else {
+                if (arg.startsWith('--')) {
+                    throw new Error(`Unknown option: ${arg}`);
+                }
+
                 const parts = arg.split(':');
                 let meshLODRatio = 1;
                 let embedTextures: boolean | null = null;
@@ -178,7 +182,7 @@ async function main() {
                         if (part !== '') {
                             meshLODRatio = Number(part);
                             if (isNaN(meshLODRatio) || meshLODRatio <= 0 || meshLODRatio > 1) {
-                                throw new Error('Invalid LOD simplification ratio. Must be a number > 0 and <= 1');
+                                throw new Error(`Invalid LOD simplification ratio "${part}". Must be a number > 0 and <= 1`);
                             }
                         }
                     } else if (focus === 1) {

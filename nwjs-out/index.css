@@ -42,7 +42,7 @@ p {
     font-weight: bold;
 }
 
-p, label {
+#main p, #main label {
     user-select: none;
 }
 

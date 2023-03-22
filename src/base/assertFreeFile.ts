@@ -3,6 +3,6 @@ import { CollisionError } from './ModelSplitterError';
 
 export function assertFreeFile(filePath: string) {
     if (existsSync(filePath)) {
-        throw new CollisionError(filePath);
+        throw CollisionError.fromFilePath(filePath);
     }
 }

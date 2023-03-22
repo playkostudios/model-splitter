@@ -130,8 +130,8 @@ export class LODModelLoader {
     }
 
     private transferUniform(srcMat: ConvertedMaterial, dstMat: Material, uniformName: ConvertedMaterialUniformName): boolean {
-        const origValue = srcMat[uniformName];
-        if (origValue !== undefined) {
+        const origValue = srcMat[uniformName] ?? null;
+        if (origValue !== null) {
             // XXX WLE materials dont have proper uniform type definitions, so
             //     we have to cast
             (dstMat as unknown as Record<string, unknown>)[uniformName] = origValue;
@@ -144,11 +144,15 @@ export class LODModelLoader {
     private async transferTextureUniform(srcMat: ConvertedMaterial, dstMat: Material, uniformName: ConvertedMaterialTextureName): Promise<boolean>;
     private async transferTextureUniform(srcMat: ConvertedMaterial, dstMat: Material, uniformName: string, srcUniformName: ConvertedMaterialTextureName): Promise<boolean>;
     private async transferTextureUniform(srcMat: ConvertedMaterial, dstMat: Material, uniformName: ConvertedMaterialTextureName | string, srcUniformName?: ConvertedMaterialTextureName): Promise<boolean> {
-        const texSrc = srcMat[(srcUniformName ?? uniformName) as ConvertedMaterialTextureName];
-        if (texSrc !== undefined) {
+        const texSrc = srcMat[(srcUniformName ?? uniformName) as ConvertedMaterialTextureName] ?? null;
+        if (texSrc !== null) {
             // XXX WLE materials dont have proper uniform type definitions, so
             //     we have to cast
-            (dstMat as unknown as Record<string, unknown>)[uniformName] = await this.loadTexture(texSrc);
+            const texture = await this.loadTexture(texSrc);
+            if (texture) {
+                (dstMat as unknown as Record<string, unknown>)[uniformName] = texture;
+            }
+
             return true;
         } else {
             return false;

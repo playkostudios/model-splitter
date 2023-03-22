@@ -7,6 +7,7 @@ import type { notify as _notify } from 'node-notifier';
 import type { WrappedSplitModel } from '../base/WrappedSplitModel';
 import type { ObjectLoggerMessage, ObjectLoggerMessageType } from '../base/ObjectLogger';
 
+type SetLoggerCallback = (newLoggerCallback: (message: ObjectLoggerMessage) => void) => void;
 type Notify = typeof _notify;
 
 const LOD_ROW_ELEM_OFFSET = 7;
@@ -206,7 +207,7 @@ function parseLogLevel(select: HTMLSelectElement): Verbosity {
     }
 }
 
-async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main: HTMLElement): Promise<void> {
+async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, setLoggerCallback: SetLoggerCallback, main: HTMLElement): Promise<void> {
     // get elements
     const inputModelPicker = getElement<HTMLInputElement>('input-model-picker');
     const inputModelInput = getElement<HTMLInputElement>('input-model-input');
@@ -352,12 +353,14 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
                 logObj(textOutput, logLevel, message);
             };
 
+            setLoggerCallback(messageCallback);
+
             try {
                 await splitModel(inputPath, outputPath, lods, {
                     defaultEmbedTextures, defaultTextureResizing,
                     defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                     defaultAggressive, force
-                }, messageCallback);
+                });
             } catch(err: unknown) {
                 assertCollisionError(err);
 
@@ -366,7 +369,7 @@ async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, main
                         defaultEmbedTextures, defaultTextureResizing,
                         defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                         defaultAggressive, force: true
-                    }, messageCallback);
+                    });
                 } else {
                     throw err;
                 }
@@ -531,14 +534,15 @@ async function setupTool() {
         // load splitModel and notify functions
         let splitModel: WrappedSplitModel;
         let notify: Notify;
+        let setLoggerCallback: SetLoggerCallback;
         try {
-            ({ splitModel, notify } = require('./main-bundle.js'));
+            ({ splitModel, notify, setLoggerCallback } = require('./main-bundle.js'));
         } catch(err) {
             throw new Error(`Error importing library;\n${err}`);
         }
 
         // start renderer
-        await startRenderer(splitModel, notify, main);
+        await startRenderer(splitModel, notify, setLoggerCallback, main);
     } catch(err) {
         if (typeof err === 'object' && err !== null) {
             loadPara.textContent = `Failed to load tool: ${(err as Record<string, unknown>).message ?? err}`;
