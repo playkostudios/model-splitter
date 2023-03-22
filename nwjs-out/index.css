@@ -58,7 +58,7 @@ fieldset, #text-output {
 }
 
 #text-output, #text-output span, #text-output p {
-    user-select: all !important;
+    user-select: text !important;
 }
 
 .icon-button {

@@ -59,7 +59,11 @@ function getWorker(loggerCallback: LoggerCallback) {
     };
 
     worker.onerror = (event) => {
-        logErr(loggerCallback, `Worker crashed with error: ${event.error}`);
+        if (event.error === null) {
+            logErr(loggerCallback, 'Worker crashed, but no error was passed. Check the console');
+        } else {
+            logErr(loggerCallback, `Worker crashed with error: ${event.error}`);
+        }
     };
 
     return worker;
