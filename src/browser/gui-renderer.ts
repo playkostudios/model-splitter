@@ -1,17 +1,84 @@
 import { parseTextureSize } from '../base/parseTextureSize';
 import { Verbosity } from '@gltf-transform/core';
+import { InvalidInputError, CollisionError } from '../base/ModelSplitterError';
+// expose node-notifier's notify function
+import { notify } from 'node-notifier';
 
-import type { LODConfigList } from '../base/external-types';
-import type { ModelSplitterError, CollisionError } from '../base/ModelSplitterError';
+import type { ModelSplitterError } from '../base/ModelSplitterError';
+import type { LODConfigList, SplitModelOptions } from '../base/external-types';
 import type { notify as _notify } from 'node-notifier';
-import type { BridgedSplitModel } from '../base/BridgedSplitModel';
 import type { ObjectLoggerMessage, ObjectLoggerMessageType } from '../base/ObjectLogger';
+import type { WorkerMessage, WorkerMessageRequest } from '../worker/worker-types';
 
-type SetLoggerCallback = (newLoggerCallback: (message: ObjectLoggerMessage) => void) => void;
-type Notify = typeof _notify;
+type LoggerCallback = (message: ObjectLoggerMessage) => void;
+type ResolveFunction = CallableFunction;
+type RejectFunction = (err: unknown) => void;
+const jobs = new Map<number, [resolve: ResolveFunction, reject: RejectFunction]>();
+let nextJobID = 0;
 
 const LOD_ROW_ELEM_OFFSET = 7;
 const LOD_ROW_ELEM_COUNT = 10;
+
+function logErr(loggerCallback: LoggerCallback, str: string) {
+    console.error(str);
+    loggerCallback({ type: 'error', data: `[worker-bridge] ${str}`, time: Date.now() });
+}
+
+function getWorker(loggerCallback: LoggerCallback) {
+    const worker = new Worker('./worker-bundle.js');
+
+    worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
+        const message = event.data;
+
+        if (message.msgType === 'log') {
+            loggerCallback(message);
+        } else if (message.msgType === 'done') {
+            const jobTuple = jobs.get(message.job);
+            if (jobTuple === undefined) {
+                logErr(loggerCallback, `Unknown job ID "${message.job}" from worker`);
+                return;
+            }
+
+            const [resolve, reject] = jobTuple;
+            jobs.delete(message.job);
+
+            if (message.errorType !== null) {
+                if (message.errorType === 'invalid-input') {
+                    reject(new InvalidInputError(message.error as string));
+                } else if (message.errorType === 'collision') {
+                    reject(new CollisionError(message.error as string));
+                } else {
+                    reject(new Error(message.error));
+                }
+            } else {
+                resolve();
+            }
+        } else {
+            logErr(loggerCallback, `Unknown message type "${message.msgType}" from worker`);
+        }
+    };
+
+    worker.onerror = (event) => {
+        logErr(loggerCallback, `Worker crashed with error: ${event.error}`);
+    };
+
+    return worker;
+}
+
+// make wrapper for splitModel that calls worker instead of directly calling
+// splitModel. this is needed so that the main thread isn't blocked, and so that
+// dependencies that use webassembly modules with sizes greater than 4KB and
+// don't use `initialize` can be loaded
+function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions, worker: Worker): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const job = nextJobID++;
+        jobs.set(job, [resolve, reject]);
+
+        worker.postMessage(<WorkerMessageRequest>{
+            msgType: 'request', job, inputModelPath, outputFolder, lods, options
+        });
+    });
+}
 
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
     // WARN this fails fast
@@ -207,7 +274,7 @@ function parseLogLevel(select: HTMLSelectElement): Verbosity {
     }
 }
 
-async function startRenderer(splitModel: BridgedSplitModel, notify: Notify, setLoggerCallback: SetLoggerCallback, main: HTMLElement): Promise<void> {
+async function startRenderer(main: HTMLElement): Promise<void> {
     // get elements
     const inputModelPicker = getElement<HTMLInputElement>('input-model-picker');
     const inputModelInput = getElement<HTMLInputElement>('input-model-input');
@@ -266,6 +333,10 @@ async function startRenderer(splitModel: BridgedSplitModel, notify: Notify, setL
         } catch(err) {
             defaultTextureSizeInput.value = lastValidDefaultTextureSize;
         }
+    });
+
+    const worker = getWorker((message: ObjectLoggerMessage) => {
+        logObj(textOutput, logLevel, message);
     });
 
     splitButton.addEventListener('click', async () => {
@@ -349,18 +420,12 @@ async function startRenderer(splitModel: BridgedSplitModel, notify: Notify, setL
             }
 
             // split model
-            const messageCallback = (message: ObjectLoggerMessage) => {
-                logObj(textOutput, logLevel, message);
-            };
-
-            setLoggerCallback(messageCallback);
-
             try {
                 await splitModel(inputPath, outputPath, lods, {
                     defaultEmbedTextures, defaultTextureResizing,
                     defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                     defaultAggressive, force
-                });
+                }, worker);
             } catch(err: unknown) {
                 assertCollisionError(err);
 
@@ -369,7 +434,7 @@ async function startRenderer(splitModel: BridgedSplitModel, notify: Notify, setL
                         defaultEmbedTextures, defaultTextureResizing,
                         defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                         defaultAggressive, force: true
-                    });
+                    }, worker);
                 } else {
                     throw err;
                 }
@@ -529,20 +594,7 @@ async function startRenderer(splitModel: BridgedSplitModel, notify: Notify, setL
 
 async function setupTool() {
     try {
-        const main = getElement('main');
-
-        // load splitModel and notify functions
-        let splitModel: BridgedSplitModel;
-        let notify: Notify;
-        let setLoggerCallback: SetLoggerCallback;
-        try {
-            ({ splitModel, notify, setLoggerCallback } = require('./worker-bridge-bundle.js'));
-        } catch(err) {
-            throw new Error(`Error importing library;\n${err}`);
-        }
-
-        // start renderer
-        await startRenderer(splitModel, notify, setLoggerCallback, main);
+        await startRenderer(getElement('main'));
     } catch(err) {
         if (typeof err === 'object' && err !== null) {
             loadPara.textContent = `Failed to load tool: ${(err as Record<string, unknown>).message ?? err}`;

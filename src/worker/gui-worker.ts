@@ -1,7 +1,7 @@
 import type { WorkerMessage, WorkerMessageDone, WorkerMessageLog } from './worker-types';
-import { InvalidInputError, CollisionError } from './ModelSplitterError';
-import { ObjectLogger } from './ObjectLogger';
-import { splitModel } from './lib';
+import { InvalidInputError, CollisionError } from '../base/ModelSplitterError';
+import { ObjectLogger } from '../base/ObjectLogger';
+import { splitModel } from '../base/lib';
 
 // HACK fix error due to tsconfig. ideally we'd have a separate project folder
 // which would fix this issue

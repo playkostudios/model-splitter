@@ -4,5 +4,5 @@
     "lib": ["ESNext"]
   },
   "include": ["src/base/*.ts"],
-  "exclude": ["cache", "example-project", "lib", "node_modules", "nwjs-out", "nwjs-pkg-linux", "nwjs-pkg-win", "output", "pkgs", "resources", "src/browser/*.ts"]
+  "exclude": ["cache", "example-project", "lib", "node_modules", "nwjs-out", "nwjs-pkg-linux", "nwjs-pkg-win", "output", "pkgs", "resources", "src/browser/*.ts", "src/worker/*.ts"]
 }

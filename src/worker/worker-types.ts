@@ -1,5 +1,5 @@
-import type { LODConfigList, SplitModelOptions } from './external-types';
-import type { ObjectLoggerMessage, ObjectLoggerMessageType } from './ObjectLogger';
+import type { LODConfigList, SplitModelOptions } from '../base/external-types';
+import type { ObjectLoggerMessage, ObjectLoggerMessageType } from '../base/ObjectLogger';
 
 export interface WorkerMessageLog extends ObjectLoggerMessage {
     msgType: 'log',
