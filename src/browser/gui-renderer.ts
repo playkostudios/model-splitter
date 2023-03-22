@@ -4,7 +4,7 @@ import { Verbosity } from '@gltf-transform/core';
 import type { LODConfigList } from '../base/external-types';
 import type { ModelSplitterError, CollisionError } from '../base/ModelSplitterError';
 import type { notify as _notify } from 'node-notifier';
-import type { WrappedSplitModel } from '../base/WrappedSplitModel';
+import type { BridgedSplitModel } from '../base/BridgedSplitModel';
 import type { ObjectLoggerMessage, ObjectLoggerMessageType } from '../base/ObjectLogger';
 
 type SetLoggerCallback = (newLoggerCallback: (message: ObjectLoggerMessage) => void) => void;
@@ -207,7 +207,7 @@ function parseLogLevel(select: HTMLSelectElement): Verbosity {
     }
 }
 
-async function startRenderer(splitModel: WrappedSplitModel, notify: Notify, setLoggerCallback: SetLoggerCallback, main: HTMLElement): Promise<void> {
+async function startRenderer(splitModel: BridgedSplitModel, notify: Notify, setLoggerCallback: SetLoggerCallback, main: HTMLElement): Promise<void> {
     // get elements
     const inputModelPicker = getElement<HTMLInputElement>('input-model-picker');
     const inputModelInput = getElement<HTMLInputElement>('input-model-input');
@@ -532,11 +532,11 @@ async function setupTool() {
         const main = getElement('main');
 
         // load splitModel and notify functions
-        let splitModel: WrappedSplitModel;
+        let splitModel: BridgedSplitModel;
         let notify: Notify;
         let setLoggerCallback: SetLoggerCallback;
         try {
-            ({ splitModel, notify, setLoggerCallback } = require('./main-bundle.js'));
+            ({ splitModel, notify, setLoggerCallback } = require('./worker-bridge-bundle.js'));
         } catch(err) {
             throw new Error(`Error importing library;\n${err}`);
         }

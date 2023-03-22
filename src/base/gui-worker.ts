@@ -1,58 +1,25 @@
-import { readFileSync } from 'node:fs';
-import { ObjectLogger } from './ObjectLogger';
-import { InvalidInputError, CollisionError } from './ModelSplitterError';
-import { splitModel as _splitModel } from './lib';
-const gltfpack = require('gltfpack');
-
-import type { ObjectLoggerMessage } from './ObjectLogger';
-import type { LODConfigList, SplitModelOptions } from './external-types';
 import type { WorkerMessage, WorkerMessageDone, WorkerMessageLog } from './worker-types';
+import { InvalidInputError, CollisionError } from './ModelSplitterError';
+import { ObjectLogger } from './ObjectLogger';
+import { splitModel } from './lib';
 
-// wrap splitModel and logger together
-let gltfpackInitialized = false;
-async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions, messageCallback: (message: ObjectLoggerMessage) => void): Promise<void> {
-    const logger = new ObjectLogger(messageCallback);
-
-    if (!gltfpackInitialized) {
-        // XXX gltfpack is not auto-initialized because nw.js contexts are weird
-        logger.debug('gltfpack not initialized yet. Initializing...');
-        gltfpack.init(readFileSync(__dirname + '/library.wasm'));
-        gltfpackInitialized = true;
-        logger.debug('gltfpack initialized');
-    }
-
-    let error: unknown, hasError = false;
-
-    try {
-        await _splitModel(inputModelPath, outputFolder, lods, {
-            ...options,
-            logger
-        });
-    } catch(err) {
-        error = err;
-        hasError = true;
-    }
-
-    if (hasError) {
-        throw error;
-    }
+// HACK fix error due to tsconfig. ideally we'd have a separate project folder
+// which would fix this issue
+if (typeof globalThis.exports === 'undefined') {
+    globalThis.exports = {};
 }
 
-onmessage = async (event: MessageEvent<WorkerMessage>) => {
+globalThis.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     const message = event.data;
-
-    const source = event.source;
-    if (!source) {
-        console.error('Unexpected null source');
-        return;
-    }
 
     if (message.msgType === 'request') {
         try {
-            await splitModel(message.inputModelPath, message.outputFolder, message.lods, message.options, (msg) => {
-                source.postMessage(<WorkerMessageLog>{ msgType: 'log', ...msg });
+            const logger = new ObjectLogger((msg) => {
+                postMessage(<WorkerMessageLog>{ msgType: 'log', ...msg });
             });
-        } catch (err) {
+
+            await splitModel(message.inputModelPath, message.outputFolder, message.lods, { ...message.options, logger });
+        } catch (err: unknown) {
             let error: string;
             let errorType = 'other';
 
@@ -72,13 +39,13 @@ onmessage = async (event: MessageEvent<WorkerMessage>) => {
                 error = `${err}`;
             }
 
-            source.postMessage(<WorkerMessageDone>{
+            postMessage(<WorkerMessageDone>{
                 msgType: 'done', job: message.job, errorType, error
             });
             return;
         }
 
-        source.postMessage(<WorkerMessageDone>{
+        postMessage(<WorkerMessageDone>{
             msgType: 'done', job: message.job, errorType: null
         });
     } else {

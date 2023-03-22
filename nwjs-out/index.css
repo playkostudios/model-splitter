@@ -42,7 +42,7 @@ p {
     font-weight: bold;
 }
 
-#main p, #main label {
+#main p, #main label, #main span, #main legend {
     user-select: none;
 }
 
@@ -55,6 +55,10 @@ fieldset, #text-output {
     box-sizing: border-box;
     width: 100%;
     overflow-x: auto;
+}
+
+#text-output, #text-output span, #text-output p {
+    user-select: all !important;
 }
 
 .icon-button {
