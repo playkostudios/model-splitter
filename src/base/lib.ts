@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync, statSync, existsSync, readFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, statSync, existsSync } from 'node:fs';
 import { basename, extname, resolve as resolvePath } from 'node:path';
 import { splitSingleLOD } from './splitSingleLOD';
 import { InvalidInputError } from './ModelSplitterError';
@@ -12,7 +12,7 @@ import type { IGLTF, IImage } from 'babylonjs-gltf2interface';
 import type { Metadata } from './output-types';
 import type { GltfpackArgCombo, OriginalImagesList, ParsedLODConfigList, ProcessedTextureList } from './internal-types';
 import type { LODConfigList, PackedResizeOption, SplitModelOptions } from './external-types';
-// import { wlefyModel } from './wlefyModel';
+import { wlefyModel } from './wlefyModel';
 
 export * from './ModelSplitterError';
 export * from './external-types';
