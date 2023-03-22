@@ -1,5 +1,4 @@
 import { InvalidInputError, CollisionError } from './ModelSplitterError';
-import { Worker } from 'node:worker_threads';
 // expose node-notifier's notify function
 const { notify } = require('node-notifier');
 
@@ -22,7 +21,7 @@ function log(message: ObjectLoggerMessage) {
 
 function logErr(str: string) {
     console.error(str);
-    log({ type: 'error', data: `Error in worker: ${str}`, time: Date.now() });
+    log({ type: 'error', data: `[worker-bridge] ${str}`, time: Date.now() });
 }
 
 let worker: null | Worker = null;
@@ -31,7 +30,9 @@ function getWorker() {
     if (!worker) {
         worker = new Worker('./worker-bundle.js');
 
-        worker.on('message', (message: WorkerMessage) => {
+        worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
+            const message = event.data;
+
             if (message.msgType === 'log') {
                 log(message);
             } else if (message.msgType === 'done') {
@@ -58,23 +59,11 @@ function getWorker() {
             } else {
                 logErr(`Unknown message type ${message.msgType}`);
             }
-        });
+        };
 
-        worker.on('error', (err) => {
-            logErr(`Error thrown in worker thread: ${err}`);
-        });
-
-        worker.stdout.on('data', data => log({
-            type: 'info',
-            data: `[worker stdout] ${data}`,
-            time: Date.now(),
-        }));
-
-        worker.stderr.on('data', data => log({
-            type: 'error',
-            data: `[worker stderr] ${data}`,
-            time: Date.now(),
-        }));
+        worker.onerror = (event) => {
+            logErr(`Worker crashed with error: ${event.error}`);
+        };
     }
 
     return worker;

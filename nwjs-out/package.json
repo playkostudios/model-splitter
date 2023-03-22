@@ -17,5 +17,5 @@
     "double_tap_to_zoom_enabled": false,
     "plugin": false
   },
-  "chromium-args": "--enable-logging=stderr --enable-node-worker"
+  "chromium-args": "--enable-logging=stderr"
 }

@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { ObjectLogger } from './ObjectLogger';
 import { InvalidInputError, CollisionError } from './ModelSplitterError';
 import { splitModel as _splitModel } from './lib';
-import { parentPort as _parentPort } from 'node:worker_threads';
 const gltfpack = require('gltfpack');
 
 import type { ObjectLoggerMessage } from './ObjectLogger';
@@ -39,17 +38,19 @@ async function splitModel(inputModelPath: string, outputFolder: string, lods: LO
     }
 }
 
-if (_parentPort === null) {
-    throw new Error('Unexpected null parentPort');
-}
+onmessage = async (event: MessageEvent<WorkerMessage>) => {
+    const message = event.data;
 
-const parentPort = _parentPort;
+    const source = event.source;
+    if (!source) {
+        console.error('Unexpected null source');
+        return;
+    }
 
-parentPort.on('message', async (message: WorkerMessage) => {
     if (message.msgType === 'request') {
         try {
             await splitModel(message.inputModelPath, message.outputFolder, message.lods, message.options, (msg) => {
-                parentPort.postMessage(<WorkerMessageLog>{ msgType: 'log', ...msg });
+                source.postMessage(<WorkerMessageLog>{ msgType: 'log', ...msg });
             });
         } catch (err) {
             let error: string;
@@ -71,16 +72,16 @@ parentPort.on('message', async (message: WorkerMessage) => {
                 error = `${err}`;
             }
 
-            parentPort.postMessage(<WorkerMessageDone>{
+            source.postMessage(<WorkerMessageDone>{
                 msgType: 'done', job: message.job, errorType, error
             });
             return;
         }
 
-        parentPort.postMessage(<WorkerMessageDone>{
+        source.postMessage(<WorkerMessageDone>{
             msgType: 'done', job: message.job, errorType: null
         });
     } else {
         console.error(`Unknown message type ${message.msgType}`);
     }
-});
+};
