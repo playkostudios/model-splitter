@@ -1,19 +1,16 @@
 {
   "name": "model-splitter-example",
-  "version": "0.0.1",
-  "description": "Example Wonderland Engine project for model-splitter runtime",
-  "main": "js/bundle.js",
-  "scripts": {
-    "build": "esbuild js/bundle.js --minify --bundle --sourcemap --format=iife --target=es6 --platform=browser --outfile=deploy/model-splitter-example-bundle.js"
-  },
-  "keywords": [],
-  "contributors": [
-    "Rafael Fernandes <rafael@playko.com>",
-    "Playko (https://www.playko.com/)"
+  "version": "1.0.0",
+  "description": "My Wonderland project",
+  "main": "js/index.ts",
+  "type": "module",
+  "module": "js/index.ts",
+  "keywords": [
+    "wonderland-engine"
   ],
-  "license": "MIT",
-  "devDependencies": {
-    "@wonderlandengine/components": "0.9.2",
-    "esbuild": "^0.17.11"
+  "dependencies": {
+    "@wonderlandengine/api": "0.9.8",
+    "@wonderlandengine/components": "^1.0.0-rc.1",
+    "gl-matrix": "^3.4.3"
   }
 }

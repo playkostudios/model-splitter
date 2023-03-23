@@ -1,9 +1,9 @@
 import { loadImage } from './loadImage';
 import { EXTENSION_NAME } from '../base/extension-name';
+import { Texture } from '@wonderlandengine/api';
 
-import type { Texture, Material, MeshComponent, Object as $Object } from '@wonderlandengine/api';
+import type { Material, MeshComponent, Object as $Object, WonderlandEngine } from '@wonderlandengine/api';
 import type { ConvertedMaterial, ConvertedMaterialTextureName, ConvertedMaterialUniformName, Metadata } from '../base/output-types';
-import type { WonderlandEngine } from './WonderlandEngine-shim';
 
 type ExtMeshData = Record<number, Record<string, { replacedMaterials: Array<[meshIdx: number, matIdx: number]> }>>;
 type ExtRootData = Record<string, { convertedMaterials: Array<ConvertedMaterial> }>;
@@ -114,7 +114,7 @@ export class LODModelLoader {
         }
 
         try {
-            texture = new this.engine.Texture(await loadImage(texSrc, this.cdnRoot, this.timeout));
+            texture = new Texture(this.engine, await loadImage(texSrc, this.cdnRoot, this.timeout));
         } catch (err) {
             console.error(err);
             console.warn(`Failed to download or initialize texture "${texSrc}"`);

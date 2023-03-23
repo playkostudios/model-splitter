@@ -21,7 +21,7 @@
                 0.0,
                 0.9262865
             ],
-            "scale": [
+            "scaling": [
                 0.9999998,
                 1.0,
                 0.9999998
@@ -49,7 +49,7 @@
                 0.0,
                 0.7069638
             ],
-            "scale": [
+            "scaling": [
                 4.0,
                 4.0,
                 4.0
@@ -77,7 +77,7 @@
                 0.0,
                 1.0
             ],
-            "scale": [
+            "scaling": [
                 0.5,
                 0.5,
                 0.5
@@ -146,7 +146,7 @@
                 0.0,
                 1.0
             ],
-            "scale": [
+            "scaling": [
                 1.0,
                 1.0,
                 1.0
@@ -173,7 +173,7 @@
                 0.0,
                 1.0
             ],
-            "scale": [
+            "scaling": [
                 1.0,
                 1.0,
                 1.0
@@ -201,7 +201,7 @@
                 0.0,
                 1.0
             ],
-            "scale": [
+            "scaling": [
                 1.0,
                 1.0,
                 1.0
@@ -229,7 +229,7 @@
                 0.0,
                 1.0
             ],
-            "scale": [
+            "scaling": [
                 0.75,
                 0.75,
                 0.75
@@ -244,9 +244,11 @@
                         "pbrTemplateMaterial": "59",
                         "phongTemplateMaterial": "62",
                         "avoidPBR": true,
-                        "lod": 5,
-                        "cdnRoot": "~embedded/",
-                        "metadataURLFilename": "model.metadata.json"
+                        "lod": 1,
+                        "cdnRoot": "~external/",
+                        "metadataURLFilename": "pizzeria.metadata.json",
+                        "pbrOpaqueTemplateMaterial": "65",
+                        "phongOpaqueTemplateMaterial": "66"
                     }
                 }
             ],
@@ -261,7 +263,7 @@
                 0.0,
                 1.0
             ],
-            "scale": [
+            "scaling": [
                 1.0,
                 1.0,
                 1.0
@@ -401,11 +403,19 @@
         },
         "59": {
             "name": "PBRTemplateMaterial",
-            "pipeline": "60"
+            "pipeline": "33"
         },
         "62": {
             "name": "PhongTemplateMaterial",
-            "pipeline": "61"
+            "pipeline": "34"
+        },
+        "65": {
+            "name": "PBROpaqueTemplateMaterial",
+            "pipeline": "63"
+        },
+        "66": {
+            "name": "PhongOpaqueTemplateMaterial",
+            "pipeline": "64"
         }
     },
     "shaders": {
@@ -504,9 +514,9 @@
         "project": {
             "name": "model-splitter-example",
             "version": [
+                1,
                 0,
-                9,
-                5
+                0
             ]
         },
         "vr": {
@@ -515,10 +525,14 @@
         },
         "scripting": {
             "sourcePaths": [
-                "/js/editor-components-bundle.js",
                 "js/"
             ],
-            "useInternalBundler": false
+            "libraryPaths": [
+                "/js/lib/"
+            ],
+            "bundlingType": "esbuild",
+            "entryPoint": "js/index.ts",
+            "esbuildFlags": "--minify --format=esm"
         },
         "runtime": {
             "enableRuntimeGltf": true
@@ -527,18 +541,6 @@
     "animations": {},
     "skins": {},
     "pipelines": {
-        "33": {
-            "link": {
-                "name": "DistanceFieldVector",
-                "file": "default"
-            }
-        },
-        "34": {
-            "link": {
-                "name": "Flat Opaque",
-                "file": "default"
-            }
-        },
         "35": {
             "link": {
                 "name": "Flat Opaque Textured",
@@ -619,6 +621,60 @@
         },
         "60": {
             "link": {
+                "name": "DistanceFieldVector",
+                "file": "default"
+            }
+        },
+        "61": {
+            "link": {
+                "name": "Flat Opaque",
+                "file": "default"
+            }
+        },
+        "63": {
+            "link": {
+                "name": "Physical Opaque Textured",
+                "file": "default"
+            },
+            "name": "Physical All Features Textured Opaque",
+            "features": {
+                "NORMAL_MAPPING": true
+            },
+            "blending": false,
+            "blendSrcRgb": "source alpha",
+            "blendDestRgb": "one minus source alpha",
+            "sampleAlphaToCoverage": false,
+            "blendSrcAlpha": "source alpha",
+            "blendDestAlpha": "one minus source alpha",
+            "blendEqAlpha": "max",
+            "depthFunction": "less",
+            "depthTest": true
+        },
+        "64": {
+            "link": {
+                "name": "Phong Opaque Textured",
+                "file": "default"
+            },
+            "name": "Phong All Features Textured Opaque",
+            "features": {
+                "NORMAL_MAPPING": true,
+                "WITH_EMISSIVE": false,
+                "WITH_FOG": true,
+                "ALPHA_MASKED": false
+            },
+            "blending": false,
+            "blendSrcRgb": "source alpha",
+            "blendDestAlpha": "one minus source alpha",
+            "blendDestRgb": "one minus source alpha",
+            "blendSrcAlpha": "source alpha",
+            "sampleAlphaToCoverage": false,
+            "blendEqAlpha": "max",
+            "depthFunction": "less",
+            "depthTest": true,
+            "depthWrite": true
+        },
+        "33": {
+            "link": {
                 "name": "Physical Opaque Textured",
                 "file": "default"
             },
@@ -632,9 +688,11 @@
             "sampleAlphaToCoverage": false,
             "blendSrcAlpha": "source alpha",
             "blendDestAlpha": "one minus source alpha",
-            "blendEqAlpha": "max"
+            "blendEqAlpha": "max",
+            "depthFunction": "less",
+            "depthTest": true
         },
-        "61": {
+        "34": {
             "link": {
                 "name": "Phong Opaque Textured",
                 "file": "default"
@@ -652,7 +710,10 @@
             "blendDestRgb": "one minus source alpha",
             "blendSrcAlpha": "source alpha",
             "sampleAlphaToCoverage": false,
-            "blendEqAlpha": "max"
+            "blendEqAlpha": "max",
+            "depthFunction": "less",
+            "depthTest": true,
+            "depthWrite": true
         }
     },
     "textures": {},
@@ -664,5 +725,6 @@
                 "file": "default"
             }
         }
-    }
+    },
+    "languages": {}
 }
