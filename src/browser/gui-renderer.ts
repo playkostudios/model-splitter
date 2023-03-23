@@ -19,12 +19,12 @@ let nextJobID = 0;
 const LOD_ROW_ELEM_OFFSET = 7;
 const LOD_ROW_ELEM_COUNT = 10;
 
-function logErr(loggerCallback: LoggerCallback, str: string) {
-    console.error(str);
-    loggerCallback({ type: 'error', data: `[worker-bridge] ${str}`, time: Date.now() });
+function logErr(loggerCallback: LoggerCallback, data: string) {
+    console.error(data);
+    loggerCallback({ type: 'error', data, time: Date.now() });
 }
 
-function getWorker(loggerCallback: LoggerCallback) {
+function getWorker(loggerCallback: LoggerCallback, initCallback: CallableFunction, crashCallback: (err: string) => void) {
     const worker = new Worker('./worker-bundle.js');
 
     worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
@@ -53,16 +53,18 @@ function getWorker(loggerCallback: LoggerCallback) {
             } else {
                 resolve();
             }
-        } else {
+        } else if (message.msgType === 'init') {
+            initCallback();
+        }else {
             logErr(loggerCallback, `Unknown message type "${message.msgType}" from worker`);
         }
     };
 
     worker.onerror = (event) => {
         if (event.error === null) {
-            logErr(loggerCallback, 'Worker crashed, but no error was passed. Check the console');
+            crashCallback('Worker crashed, but no error was passed. Check the console');
         } else {
-            logErr(loggerCallback, `Worker crashed with error: ${event.error}`);
+            crashCallback(`Worker crashed with error: ${event.error}`);
         }
     };
 
@@ -339,8 +341,28 @@ async function startRenderer(main: HTMLElement): Promise<void> {
         }
     });
 
+    let workerInitDone = false;
+
+    setTimeout(() => {
+        if (!workerInitDone) {
+            log(textOutput, logLevel, 'warn', null, "10 seconds have passed and the worker hasn't initialized yet. Worker may have silently failed to initialize. Check console for details");
+            toggleTextOutput(toggleTextOutputButton, textOutput, true);
+        }
+    }, 10000);
+
     const worker = getWorker((message: ObjectLoggerMessage) => {
         logObj(textOutput, logLevel, message);
+    }, () => {
+        if (!workerInitDone) {
+            workerInitDone = true;
+            splitButton.disabled = false;
+            log(textOutput, logLevel, 'info', null, 'Worker initialized');
+        }
+    }, (err: string) => {
+        workerInitDone = true;
+        splitButton.disabled = true;
+        logErr(logObj.bind(null, textOutput, logLevel), err);
+        toggleTextOutput(toggleTextOutputButton, textOutput, true);
     });
 
     splitButton.addEventListener('click', async () => {

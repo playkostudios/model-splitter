@@ -24,4 +24,8 @@ export interface WorkerMessageRequest {
     options: SplitModelOptions,
 }
 
-export type WorkerMessage = WorkerMessageLog | WorkerMessageDone | WorkerMessageRequest;
+export interface WorkerMessageInit {
+    msgType: 'init',
+}
+
+export type WorkerMessage = WorkerMessageLog | WorkerMessageDone | WorkerMessageRequest | WorkerMessageInit;

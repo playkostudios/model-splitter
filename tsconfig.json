@@ -3,6 +3,6 @@
   "compilerOptions": {
     "lib": ["ESNext", "DOM"]
   },
-  "include": ["src/base/*.ts", "src/browser/*.ts", "example-project/js/*.js"],
+  "include": ["src/base/*.ts", "src/browser/*.ts", "example-project/js/*.js", "scripts/*.js"],
   "exclude": ["cache", "example-project", "lib", "node_modules", "nwjs-out", "nwjs-pkg-linux", "nwjs-pkg-win", "output", "pkgs", "resources"]
 }

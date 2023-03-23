@@ -1,4 +1,4 @@
-import type { WorkerMessage, WorkerMessageDone, WorkerMessageLog } from './worker-types';
+import type { WorkerMessage, WorkerMessageDone, WorkerMessageInit, WorkerMessageLog } from './worker-types';
 import { InvalidInputError, CollisionError } from '../base/ModelSplitterError';
 import { ObjectLogger } from '../base/ObjectLogger';
 import { splitModel } from '../base/lib';
@@ -52,3 +52,5 @@ globalThis.onmessage = async (event: MessageEvent<WorkerMessage>) => {
         console.error(`Unknown message type ${message.msgType}`);
     }
 };
+
+postMessage(<WorkerMessageInit>{ msgType: 'init' });
