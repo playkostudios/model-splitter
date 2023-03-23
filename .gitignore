@@ -26,6 +26,6 @@ pnpm-lock.yaml
 /cache
 /nwjs-pkg-linux
 /nwjs-pkg-win
-/model-splitter-gui-linux.zip
+/model-splitter-gui-linux.tar.gz
 /model-splitter-gui-win.zip
 /sharp-cache

@@ -1,7 +1,7 @@
 {
   "name": "model-splitter-gui",
   "main": "index.html",
-  "packageManager": "pnpm@7.29.0",
+  "packageManager": "npm@8.19.2",
   "nodejs": true,
   "window": {
     "id": "model-splitter-gui",
@@ -17,5 +17,11 @@
     "double_tap_to_zoom_enabled": false,
     "plugin": false
   },
-  "chromium-args": "--enable-logging=stderr --enable-node-worker --mixed-context"
+  "chromium-args": "--enable-logging=stderr --enable-node-worker --mixed-context",
+  "dependencies": {
+    "sharp": "^0.31.3"
+  },
+  "scripts": {
+    "prepare": "npm rebuild --platform=linux --arch=x64 --libc=glibc sharp && npm rebuild --platform=win32 --arch=x64 sharp"
+  }
 }
