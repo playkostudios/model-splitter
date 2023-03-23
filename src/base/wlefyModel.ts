@@ -1,5 +1,5 @@
 import { HTTPUtils, PlatformIO } from '@gltf-transform/core';
-import { resample, prune, dequantize, metalRough, tangents } from '@gltf-transform/functions';
+import { resample, prune, dequantize, metalRough, tangents, unweld } from '@gltf-transform/functions';
 import { KHRONOS_EXTENSIONS } from '@gltf-transform/extensions';
 import draco3d from 'draco3dgltf';
 import { PrefixedLogger } from './PrefixedLogger';
@@ -63,6 +63,7 @@ export async function wlefyModel(inputModelPath: string, logger: ILogger): Promi
         resample(),
         dequantize(),
         metalRough(),
+        unweld(),
         tangents({ generateTangents, overwrite: false }),
         prune(),
     );
