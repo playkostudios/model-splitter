@@ -1,18 +1,79 @@
-const gltfpack = require('gltfpack');
 const { glbToGltf } = require('gltf-pipeline');
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { InvalidInputError } from './ModelSplitterError';
+import { resolve as resolvePath } from 'node:path';
+import { spawn } from 'node:child_process';
 
 import type { ILogger } from '@gltf-transform/core';
 import type { GltfpackArgCombo } from './internal-types';
 import type { IGLTF } from 'babylonjs-gltf2interface';
 import type { BasisUniversalMode, PackedResizeOption } from './external-types';
 
-async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, aggressive: boolean, basisu: BasisUniversalMode, basisuResize: PackedResizeOption, logger: ILogger): Promise<Uint8Array> {
+function gltfpackSpawn(workingDir: string, gltfpackPath: string, gltfpackArgs: Array<string>, logger: ILogger): Promise<void> {
+    logger.debug(`Spawning process: ${gltfpackPath} ${gltfpackArgs.join(' ')}`);
+
+    return new Promise((resolve, reject) => {
+        const childProc = spawn(gltfpackPath, gltfpackArgs, {
+            cwd: workingDir,
+            windowsHide: true
+        });
+
+        let done = false;
+        childProc.on('exit', (code, signal) => {
+            if (done) {
+                return;
+            }
+
+            done = true;
+
+            if (code === 0) {
+                resolve();
+            } else {
+                reject(new Error(`gltfpack exited with code ${code} and signal ${signal}.`));
+            }
+        });
+
+        childProc.on('error', (err) => {
+            if (done) {
+                return;
+            }
+
+            done = true;
+            reject(err);
+        });
+
+        childProc.stdout.on('data', (chunk: string | Buffer | null) => {
+            if (typeof chunk === 'string') {
+                logger.info(`[gltfpack] ${chunk}`);
+            } else if (chunk !== null) {
+                logger.info(`[gltfpack] ${chunk.toString()}`);
+            }
+        });
+
+        childProc.stderr.on('data', (chunk: string | Buffer | null) => {
+            let str: string;
+            if (typeof chunk === 'string') {
+                str = chunk;
+            } else if (chunk !== null) {
+                str = chunk.toString();
+            } else {
+                return;
+            }
+
+            if (str.startsWith('Warning')) {
+                logger.warn(`[gltfpack] ${str}`);
+            } else {
+                logger.error(`[gltfpack] ${str}`);
+            }
+        });
+    });
+}
+
+async function gltfpackPass(tempFolderPath: string, modelBuffer: Uint8Array, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, aggressive: boolean, basisu: BasisUniversalMode, basisuResize: PackedResizeOption, logger: ILogger): Promise<Uint8Array> {
     // build argument list
-    const inputPath = `argument://input-model.gl${isGLTF ? 'tf' : 'b'}`;
-    const outputPath = 'argument://output-model.glb';
+    const inputPath = resolvePath(tempFolderPath, 'input-model.glb');
+    const outputPath = resolvePath(tempFolderPath, 'output-model.glb');
     const args = ['-i', inputPath, '-o', outputPath, '-noq'];
 
     if (!optimizeSceneHierarchy) {
@@ -61,54 +122,25 @@ async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: 
     }
 
     // simplify
-    let output: Uint8Array | null = null;
-    const log: string = await gltfpack.pack(args, {
-        read: (filePath: string) => {
-            if (filePath === inputPath) {
-                return modelBuffer;
-            } else {
-                return readFileSync(filePath);
-            }
-        },
-        write: (filePath: string, data: Uint8Array) => {
-            if (filePath === outputPath) {
-                output = data;
-            } else {
-                logger.warn(`Ignored unexpected gltfpack file write to path "${filePath}"`);
-            }
-        },
-    });
+    logger.debug(`Writing to temporary input model file "${inputPath}"`);
+    writeFileSync(inputPath, modelBuffer);
+    logger.debug(`Done writing`);
 
-    // extract output
-    if (log !== '') {
-        const lines = log.split('\n');
+    await gltfpackSpawn(tempFolderPath, 'gltfpack', args, logger);
 
-        for (const line of lines) {
-            if (line === '') {
-                continue;
-            }
+    logger.debug(`Reading from temporary output model file "${outputPath}"`);
+    const output = readFileSync(outputPath);
+    logger.debug(`Done reading`);
 
-            const prefixLine = `[gltfpack] ${line}`;
-            if (line.startsWith('Error')) {
-                logger.error(prefixLine);
-            } else if (line.startsWith('Warning')) {
-                logger.warn(prefixLine);
-            } else {
-                logger.info(prefixLine);
-            }
-        }
-    }
-
-    if (output === null) {
-        throw new Error('gltfpack had no output');
-    }
-
+    logger.debug('Deleting temporary files...');
+    rmSync(inputPath);
+    rmSync(outputPath);
     return output;
 }
 
-export function simplifyModel(modelBuffer: Uint8Array, gltfpackArgCombos: Array<GltfpackArgCombo>, gltfpackOutputs: Array<IGLTF>, gacIdx: number, logger: ILogger) {
+export function simplifyModel(tempFolderPath: string, modelBuffer: Uint8Array, gltfpackArgCombos: Array<GltfpackArgCombo>, gltfpackOutputs: Array<IGLTF>, gacIdx: number, logger: ILogger) {
     return new Promise<void>((resolve, reject) => {
-        gltfpackPass(modelBuffer, false, ...gltfpackArgCombos[gacIdx], logger).then(buf => {
+        gltfpackPass(tempFolderPath, modelBuffer, ...gltfpackArgCombos[gacIdx], logger).then(buf => {
             return glbToGltf(buf);
         }).then(results => {
             if (results.separateResources && Object.getOwnPropertyNames(results.separateResources).length > 0) {

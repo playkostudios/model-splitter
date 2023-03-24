@@ -79,7 +79,6 @@
     "eslint": "^8.36.0",
     "glob": "^8.1.0",
     "gltf-pipeline": "^4.0.2",
-    "gltfpack": "^0.18.0",
     "mikktspace": "^1.1.1",
     "node-notifier": "^10.0.1",
     "nw-builder": "4.1.0-beta.3",

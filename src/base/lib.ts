@@ -1,5 +1,5 @@
-import { writeFileSync, mkdirSync, statSync, existsSync } from 'node:fs';
-import { basename, extname, resolve as resolvePath } from 'node:path';
+import { writeFileSync, mkdirSync, statSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { basename, extname, join as joinPath, resolve as resolvePath } from 'node:path';
 import { splitSingleLOD } from './splitSingleLOD';
 import { InvalidInputError } from './ModelSplitterError';
 import { assertFreeFile } from './assertFreeFile';
@@ -13,11 +13,12 @@ import type { Metadata } from './output-types';
 import type { GltfpackArgCombo, OriginalImagesList, ParsedLODConfigList, ProcessedTextureList } from './internal-types';
 import type { LODConfigList, PackedResizeOption, SplitModelOptions } from './external-types';
 import { wlefyModel } from './wlefyModel';
+import { tmpdir } from 'node:os';
 
 export * from './ModelSplitterError';
 export * from './external-types';
 
-export async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
+async function _splitModel(tempFolderPath: string, inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
     // parse options and get defaults
     const defaultEmbedTextures = options.defaultEmbedTextures ?? false;
     const defaultResizeOpt: PackedResizeOption = options.defaultTextureResizing ?? 'keep';
@@ -85,7 +86,7 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
         let embedTextures = lod.embedTextures ?? defaultEmbedTextures;
 
         if (basisUniversal !== 'disabled') {
-            logger.warn('Basis Universal enabled for model, texture embedding for-disabled');
+            logger.warn('Basis Universal enabled for model, texture embedding force-disabled');
             embedTextures = false;
         }
 
@@ -135,7 +136,7 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
 
     for (let i = 0; i < gacCount; i++) {
         const gacIdx = i;
-        gltfpackPromises.push(simplifyModel(wlefiedModel, gltfpackArgCombos, gltfpackOutputs, gacIdx, logger));
+        gltfpackPromises.push(simplifyModel(tempFolderPath, wlefiedModel, gltfpackArgCombos, gltfpackOutputs, gacIdx, logger));
     }
 
     await Promise.all(gltfpackPromises);
@@ -286,4 +287,19 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
 
     writeFileSync(outPath, JSON.stringify(metadata));
     logger.debug(`All done`);
+}
+
+export async function splitModel(inputModelPath: string, outputFolder: string, lods: LODConfigList, options?: SplitModelOptions) {
+    // make temp folder
+    const tempFolderPath = mkdtempSync(joinPath(tmpdir(), 'model-splitter-'));
+
+    if (!statSync(tempFolderPath).isDirectory()) {
+        throw new Error('Failed to create temporary directory; not a directory');
+    }
+
+    try {
+        return await _splitModel(tempFolderPath, inputModelPath, outputFolder, lods, options);
+    } finally {
+        rmSync(tempFolderPath, { recursive: true, force: true });
+    }
 }
