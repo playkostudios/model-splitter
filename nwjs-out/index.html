@@ -41,6 +41,14 @@
             <label for="aggressive-input" class="expand">Aggressive by default</label>
             <input type="checkbox" id="aggressive-input" />
         </div>
+        <div class="input-row" title="If enabled, then all textures will be super-compressed with basis universal. UASTC provides lower compression but higher quality, while ETC1S provides higher compression, but lower quality">
+            <label for="basis-universal-input" class="expand">Default Basis Universal mode</label>
+            <select id="basis-universal-input">
+                <option value="disabled" selected>Disabled</option>
+                <option value="uastc">UASTC</option>
+                <option value="etc1s">ETC1S</option>
+            </select>
+        </div>
         <div class="input-row" title="The resizing to apply to all textures in the model by default. Format: 'W,H', 'WxH', 'L', 'W,H!', 'WxH!' or 'L!' for specific widths, heights or lengths, and 'W,H%', 'WxH%' or 'L%' for percentage widths, heights or lengths">
             <label for="default-texture-size-input" class="expand">Default texture size</label>
             <input type="text" id="default-texture-size-input" value="100%" />
@@ -59,6 +67,7 @@
                 <span class="lod-list-header" title="This is equivalent to the gltfpack -kn option if set to 'keep'. Keeping the scene hierarchy may result in high draw calls">Scene</span>
                 <span class="lod-list-header" title="This is equivalent to the gltfpack -km option if set to 'keep'">Materials</span>
                 <span class="lod-list-header" title="If set tp 'aggressive', then mesh simplification will disregard quality">Aggressivity</span>
+                <span class="lod-list-header" title="If enabled, then all textures will be super-compressed with basis universal. UASTC provides lower compression but higher quality, while ETC1S provides higher compression, but lower quality">Basis Universal</span>
             </div>
         </fieldset>
         <div class="right-align-row">

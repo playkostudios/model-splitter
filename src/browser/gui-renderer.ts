@@ -5,7 +5,7 @@ import { InvalidInputError, CollisionError } from '../base/ModelSplitterError';
 import { notify } from 'node-notifier';
 
 import type { ModelSplitterError } from '../base/ModelSplitterError';
-import type { LODConfigList, SplitModelOptions } from '../base/external-types';
+import type { BasisUniversalMode, LODConfigList, SplitModelOptions } from '../base/external-types';
 import type { notify as _notify } from 'node-notifier';
 import type { ObjectLoggerMessage, ObjectLoggerMessageType } from '../base/ObjectLogger';
 import type { WorkerMessage, WorkerMessageRequest } from '../worker/worker-types';
@@ -16,8 +16,8 @@ type RejectFunction = (err: unknown) => void;
 const jobs = new Map<number, [resolve: ResolveFunction, reject: RejectFunction]>();
 let nextJobID = 0;
 
-const LOD_ROW_ELEM_OFFSET = 7;
-const LOD_ROW_ELEM_COUNT = 10;
+const LOD_ROW_ELEM_OFFSET = 8;
+const LOD_ROW_ELEM_COUNT = 11;
 
 function logErr(loggerCallback: LoggerCallback, data: string) {
     console.error(data);
@@ -295,6 +295,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
     const optimizeSceneHierarchyInput = getElement<HTMLInputElement>('optimize-scene-hierarchy-input');
     const mergeMaterialsInput = getElement<HTMLInputElement>('merge-materials-input');
     const aggressiveInput = getElement<HTMLInputElement>('aggressive-input');
+    const basisUniversalSelect = getElement<HTMLSelectElement>('basis-universal-input');
 
     const defaultTextureSizeInput = getElement<HTMLInputElement>('default-texture-size-input');
     let lastValidDefaultTextureSize = defaultTextureSizeInput.value;
@@ -389,6 +390,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
             const defaultOptimizeSceneHierarchy = optimizeSceneHierarchyInput.checked;
             const defaultMergeMaterials = mergeMaterialsInput.checked;
             const defaultAggressive = aggressiveInput.checked;
+            const defaultBasisUniversal = basisUniversalSelect.value as BasisUniversalMode;
 
             if (lodList.children.length <= LOD_ROW_ELEM_OFFSET) {
                 throw new Error('Nothing to do; no LODs added');
@@ -439,9 +441,15 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                     aggressive = false;
                 }
 
+                let basisUniversal: BasisUniversalMode | null = null;
+                const basisUniversalIn = children[i + 10] as HTMLSelectElement;
+                if (basisUniversalIn.value !== 'default') {
+                    basisUniversal = basisUniversalIn.value as BasisUniversalMode;
+                }
+
                 lods.push({
                     meshLODRatio, textureResizing, optimizeSceneHierarchy,
-                    mergeMaterials, embedTextures, aggressive
+                    mergeMaterials, embedTextures, aggressive, basisUniversal
                 });
             }
 
@@ -450,7 +458,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                 await splitModel(inputPath, outputPath, lods, {
                     defaultEmbedTextures, defaultTextureResizing,
                     defaultOptimizeSceneHierarchy, defaultMergeMaterials,
-                    defaultAggressive, force
+                    defaultAggressive, defaultBasisUniversal, force
                 }, worker);
             } catch(err: unknown) {
                 assertCollisionError(err);
@@ -459,7 +467,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                     await splitModel(inputPath, outputPath, lods, {
                         defaultEmbedTextures, defaultTextureResizing,
                         defaultOptimizeSceneHierarchy, defaultMergeMaterials,
-                        defaultAggressive, force: true
+                        defaultAggressive, defaultBasisUniversal, force: true
                     }, worker);
                 } else {
                     throw err;
@@ -520,6 +528,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
     const sceneHierarchyTooltip = (lodListChildren[4] as HTMLElement).title;
     const materialMergingTooltip = (lodListChildren[5] as HTMLElement).title;
     const aggressivityTooltip = (lodListChildren[6] as HTMLElement).title;
+    const basisUniversalTooltip = (lodListChildren[7] as HTMLElement).title;
 
     addLodButton.addEventListener('click', () => {
         const upButton = makeIconButton('up-icon.svg');
@@ -562,6 +571,10 @@ async function startRenderer(main: HTMLElement): Promise<void> {
         aggressive.title = aggressivityTooltip;
         lodList.appendChild(aggressive);
 
+        const basisUniversal = makeDropdown(['default', 'disabled', 'uastc', 'etc1s']);
+        basisUniversal.title = basisUniversalTooltip;
+        lodList.appendChild(basisUniversal);
+
         let lastValidTextureSize = textureSize.value;
         textureSize.addEventListener('change', () => {
             // validate texture size. switch to old value if new value is
@@ -587,6 +600,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
             lodList.removeChild(sceneHierarchy);
             lodList.removeChild(materialMerging);
             lodList.removeChild(aggressive);
+            lodList.removeChild(basisUniversal);
 
             updateLODRows(lodList, lodListHelp);
         });

@@ -7,8 +7,9 @@ import { InvalidInputError } from './ModelSplitterError';
 import type { ILogger } from '@gltf-transform/core';
 import type { GltfpackArgCombo } from './internal-types';
 import type { IGLTF } from 'babylonjs-gltf2interface';
+import type { BasisUniversalMode, PackedResizeOption } from './external-types';
 
-async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, aggressive: boolean, logger: ILogger): Promise<Uint8Array> {
+async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, aggressive: boolean, basisu: BasisUniversalMode, basisuResize: PackedResizeOption, logger: ILogger): Promise<Uint8Array> {
     // build argument list
     const inputPath = `argument://input-model.gl${isGLTF ? 'tf' : 'b'}`;
     const outputPath = 'argument://output-model.glb';
@@ -20,6 +21,29 @@ async function gltfpackPass(modelBuffer: Uint8Array, isGLTF: boolean, lodRatio: 
 
     if (!mergeMaterials) {
         args.push('-km');
+    }
+
+    if (basisu !== 'disabled') {
+        args.push('-tc');
+
+        if (basisu === 'uastc') {
+            args.push('-tu');
+        }
+
+        if (basisuResize !== 'keep') {
+            let commonDim = basisuResize[0];
+            if (commonDim !== basisuResize[1]) {
+                commonDim = Math.max(commonDim, basisuResize[1]);
+                logger.warn("gltfpack doesn't support different sizes per dimension. Using biggest length for both dimensions");
+            }
+
+            if (basisuResize[2] === '%') {
+                args.push('-ts', `${commonDim / 100}`);
+            } else {
+                logger.warn('Scaling to absolute sizes in gltfpack limits textures to a length; texture sizes never increase');
+                args.push('-tl', `${commonDim}`);
+            }
+        }
     }
 
     if (lodRatio < 1) {

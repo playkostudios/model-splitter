@@ -24,6 +24,7 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
     const defaultOptimizeSceneHierarchy = options.defaultOptimizeSceneHierarchy ?? true;
     const defaultMergeMaterials = options.defaultMergeMaterials ?? true;
     const defaultAggressive = options.defaultAggressive ?? false;
+    const defaultBasisUniversal = options.defaultBasisUniversal ?? 'disabled';
     let force = options.force ?? false;
     const logger = options.logger ?? new ConsoleLogger();
 
@@ -64,25 +65,32 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
         const optimizeSceneHierarchy = lod.optimizeSceneHierarchy ?? defaultOptimizeSceneHierarchy;
         const mergeMaterials = lod.mergeMaterials ?? defaultMergeMaterials;
         const aggressive = lod.aggressive ?? defaultAggressive;
+        const basisUniversal = lod.basisUniversal ?? defaultBasisUniversal;
 
         let gacIdx = 0;
         const gacCount = gltfpackArgCombos.length;
         for (; gacIdx < gacCount; gacIdx++) {
             const gac = gltfpackArgCombos[gacIdx];
-            if (gac[0] === lodRatio && gac[1] === optimizeSceneHierarchy && gac[2] === mergeMaterials && gac[3] === aggressive) {
+            if (gac[0] === lodRatio && gac[1] === optimizeSceneHierarchy && gac[2] === mergeMaterials && gac[3] === aggressive && gac[4] === basisUniversal && (basisUniversal === 'disabled' || gac[5] === resolvedResizeOpt)) {
                 break;
             }
         }
 
+        const basisu = basisUniversal !== 'disabled';
         if (gacIdx === gacCount) {
-            gltfpackArgCombos.push([lodRatio, optimizeSceneHierarchy, mergeMaterials, aggressive]);
+            gltfpackArgCombos.push([lodRatio, optimizeSceneHierarchy, mergeMaterials, aggressive, basisUniversal, basisu ? resolvedResizeOpt : 'keep']);
         }
 
         // parse other options
-        const embedTextures = lod.embedTextures ?? defaultEmbedTextures;
+        let embedTextures = lod.embedTextures ?? defaultEmbedTextures;
+
+        if (basisUniversal !== 'disabled') {
+            logger.warn('Basis Universal enabled for model, texture embedding for-disabled');
+            embedTextures = false;
+        }
 
         // done
-        lodsParsed.push([gacIdx, resolvedResizeOpt, embedTextures]);
+        lodsParsed.push([gacIdx, basisu ? 'keep' : resolvedResizeOpt, embedTextures]);
     }
 
     if (lodsParsed.length === 0) {
@@ -174,36 +182,49 @@ export async function splitModel(inputModelPath: string, outputFolder: string, l
     }
 
     // extract original images
-    logger.debug('Reading original images...');
     const textures: ProcessedTextureList = [];
     const originalImages: OriginalImagesList = [];
-    if (expectedImageCount > 0) {
-        const images = gltfFirst.images as Array<IImage>;
-        for (const image of images) {
-            if (image.bufferView === undefined) {
-                continue;
+    let gltfFirstNonBasisU = null;
+
+    for (let i = 0; i < gacCount; i++) {
+        if (gltfpackArgCombos[i][4] === 'disabled') {
+            continue;
+        }
+
+        gltfFirstNonBasisU = gltfpackOutputs[i];
+    }
+
+    if (gltfFirstNonBasisU !== null) {
+        logger.debug('Reading original images...');
+        if (expectedImageCount > 0) {
+            const images = gltfFirstNonBasisU.images as Array<IImage>;
+            for (const image of images) {
+                if (image.bufferView === undefined || image.mimeType as string === 'image/ktx2') {
+                    originalImages.push(null);
+                    continue;
+                }
+
+                if (gltfFirstNonBasisU.bufferViews === undefined) {
+                    throw new Error('Unexpected missing bufferViews array');
+                }
+
+                const bufferView = gltfFirstNonBasisU.bufferViews[image.bufferView];
+                const bufferIdx = bufferView.buffer;
+                const bufferLen = bufferView.byteLength;
+                const bufferOffset = bufferView.byteOffset ?? 0;
+
+                if (gltfFirstNonBasisU.buffers === undefined) {
+                    throw new Error('Unexpected missing buffers array');
+                }
+
+                const buffer = parseBuffer(parsedBuffers, gltfFirstNonBasisU.buffers[bufferIdx]);
+                let imageBuffer = buffer.subarray(bufferOffset, bufferOffset + bufferLen);
+
+                const hash = bufferHash(imageBuffer);
+                imageBuffer = getProcessedTexture(textures, hash, hash, imageBuffer, 'keep');
+
+                originalImages.push([imageBuffer, hash]);
             }
-
-            if (gltfFirst.bufferViews === undefined) {
-                throw new Error('Unexpected missing bufferViews array');
-            }
-
-            const bufferView = gltfFirst.bufferViews[image.bufferView];
-            const bufferIdx = bufferView.buffer;
-            const bufferLen = bufferView.byteLength;
-            const bufferOffset = bufferView.byteOffset ?? 0;
-
-            if (gltfFirst.buffers === undefined) {
-                throw new Error('Unexpected missing buffers array');
-            }
-
-            const buffer = parseBuffer(parsedBuffers, gltfFirst.buffers[bufferIdx]);
-            let imageBuffer = buffer.subarray(bufferOffset, bufferOffset + bufferLen);
-
-            const hash = bufferHash(imageBuffer);
-            imageBuffer = getProcessedTexture(textures, hash, hash, imageBuffer, 'keep');
-
-            originalImages.push([imageBuffer, hash]);
         }
     }
 

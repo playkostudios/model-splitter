@@ -101,7 +101,7 @@ p.msg-error {
 
 #lod-list {
     display: grid;
-    grid-template-columns: 24px 24px 24px auto auto auto auto auto auto auto;
+    grid-template-columns: 24px 24px 24px auto auto auto auto auto auto auto auto;
     gap: 4px;
 }
 

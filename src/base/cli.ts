@@ -5,7 +5,7 @@ import { parseTextureSize } from './parseTextureSize';
 import { Verbosity } from '@gltf-transform/core';
 import { ConsoleLogger } from './ConsoleLogger';
 
-import type { LODConfigList, PackedResizeOption, DefaultablePackedResizeOption } from './lib';
+import type { LODConfigList, PackedResizeOption, DefaultablePackedResizeOption, BasisUniversalMode } from './lib';
 
 function printHelp(execPath: string) {
     const execName = basename(execPath);
@@ -26,16 +26,19 @@ ${execName} model.glb output 1 0.75:50% 0.5:25% 0.25:12.5%:optimize-scene-hierar
 Options:
 - <input file>: The model file to split into LODs
 - <output folder>: The folder to put the split model into
-- <lod simplification ratio>[:<texture percentage or target side length>][:optimize-scene-hierarchy][:keep-scene-hierarchy][:merge-materials][:no-material-merging][:aggressive][:not-aggressive]: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture, scene hierarchy, and material options are equivalent to (or counteract), respectively, "--texture-size", "--keep-scene-hierarchy", "--no-material-merging" and "--aggressive" but only apply to this LOD
+- <lod simplification ratio>[:<texture percentage or target side length>][:optimize-scene-hierarchy][:keep-scene-hierarchy][:merge-materials][:no-material-merging][:aggressive][:not-aggressive][:uastc][:etc1s][:no-basisu]: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture, scene hierarchy, and material options are equivalent to (or counteract), respectively, "--texture-size", "--keep-scene-hierarchy", "--no-material-merging", "--aggressive" and "--basisu" but only apply to this LOD
 - --force: Replace existing files. This flag is not set by default, meaning that if a file needs to be replaced the tool will throw an error
 - --embed-textures: Force each LOD model to have embedded textures instead of external textures
 - --keep-scene-hierarchy: Don't optimize the scene hierarchy; keeps the same hierarchy instead of merging nodes, at the expense of higher draw calls. Can be overridden per LOD
 - --no-material-merging: Don't merge materials and keep material names. Can be overridden per LOD
 - --aggressive: Simplify mesh disregarding quality. Can be overridden per LOD
 - --texture-size <percentage or target side length>: The texture size to use for each generated LOD if it's not specified in the LOD arguments
+- --basisu <disabled, uastc, etc1s>: Should textures be compressed with basisu? Can be overridden per LOD. Disabled by default
 - --log-level <log level>: The log level to use. Can be: 'none', 'error', 'warning', 'log' or 'debug'
 - --version: Print version and exit
-- --help: Print help and exit`
+- --help: Print help and exit
+
+If an option that can only be specified once is supplied, then the last value is used.`
     );
 }
 
@@ -48,8 +51,8 @@ async function main() {
     let defaultEmbedTextures = false;
     let defaultOptimizeSceneHierarchy = true;
     let defaultMergeMaterials = true;
-    let textureSizeSpecified = false;
     let defaultAggressive = false;
+    let defaultBasisUniversal: BasisUniversalMode = 'disabled';
     let logLevel: Verbosity | null = null;
     const lods: LODConfigList = [];
 
@@ -57,6 +60,7 @@ async function main() {
         const cliArgs = process.argv.slice(2);
         let expectResizeOpt = false;
         let expectLogLevel = false;
+        let expectBasisu = false;
 
         for (const arg of cliArgs) {
             if (inputPath === null) {
@@ -82,6 +86,14 @@ async function main() {
                 } else {
                     throw new Error(`Invalid log level "${arg}"`);
                 }
+            } else if (expectBasisu) {
+                expectBasisu = false;
+
+                if (arg === 'disabled' || arg === 'uastc' || arg === 'etc1s') {
+                    defaultBasisUniversal = arg;
+                } else {
+                    throw new Error(`Invalid basisu "${arg}"`);
+                }
             } else if (arg === '--help') {
                 printHelp(process.argv[1]);
                 process.exit(0);
@@ -89,12 +101,7 @@ async function main() {
                 console.log(version);
                 process.exit(0);
             } else if (arg === '--texture-size') {
-                if (textureSizeSpecified) {
-                    throw new Error('--texture-size can only be specified once');
-                }
-
                 expectResizeOpt = true;
-                textureSizeSpecified = true;
             } else if (arg === '--force') {
                 force = true;
             } else if (arg === '--embed-textures') {
@@ -107,10 +114,8 @@ async function main() {
                 defaultAggressive = true;
             } else if (arg === '--log-level') {
                 expectLogLevel = true;
-
-                if (logLevel !== null) {
-                    throw new Error('Log level can only be specified once');
-                }
+            } else if (arg === '--basisu') {
+                expectBasisu = true;
             } else {
                 if (arg.startsWith('--')) {
                     throw new Error(`Unknown option: ${arg}`);
@@ -123,59 +128,32 @@ async function main() {
                 let optimizeSceneHierarchy: boolean | null = null;
                 let mergeMaterials: boolean | null = null;
                 let aggressive: boolean | null = null;
+                let basisUniversal: BasisUniversalMode | null = null;
                 let focus = 0;
 
                 for (const partUntrimmed of parts) {
                     const part = partUntrimmed.trim();
 
                     if (part === 'embed-textures') {
-                        if (embedTextures !== null) {
-                            throw new Error('Texture embedding LOD option can only be specified once');
-                        }
-
                         embedTextures = true;
                     } else if (part === 'external-textures') {
-                        if (embedTextures !== null) {
-                            throw new Error('Texture embedding LOD option can only be specified once');
-                        }
-
                         embedTextures = false;
                     } else if (part === 'optimize-scene-hierarchy') {
-                        if (optimizeSceneHierarchy !== null) {
-                            throw new Error('Scene hierarchy LOD option can only be specified once');
-                        }
-
                         optimizeSceneHierarchy = true;
                     } else if (part === 'keep-scene-hierarchy') {
-                        if (optimizeSceneHierarchy !== null) {
-                            throw new Error('Scene hierarchy LOD option can only be specified once');
-                        }
-
                         optimizeSceneHierarchy = false;
                     } else if (part === 'merge-materials') {
-                        if (mergeMaterials !== null) {
-                            throw new Error('Material merging LOD option can only be specified once');
-                        }
-
                         mergeMaterials = true;
                     } else if (part === 'no-material-merging') {
-                        if (mergeMaterials !== null) {
-                            throw new Error('Material merging LOD option can only be specified once');
-                        }
-
                         mergeMaterials = false;
                     } else if (part === 'aggressive') {
-                        if (aggressive !== null) {
-                            throw new Error('Aggressivity LOD option can only be specified once');
-                        }
-
                         aggressive = true;
                     } else if (part === 'not-aggressive') {
-                        if (aggressive !== null) {
-                            throw new Error('Aggressivity LOD option can only be specified once');
-                        }
-
                         aggressive = false;
+                    } else if (part === 'no-basisu') {
+                        basisUniversal = 'disabled';
+                    } else if (part === 'uastc' || part === 'etc1s') {
+                        basisUniversal = part;
                     } else if (focus === 0) {
                         focus++;
 
@@ -199,13 +177,17 @@ async function main() {
 
                 lods.push({
                     meshLODRatio, textureResizing, optimizeSceneHierarchy,
-                    mergeMaterials, aggressive, embedTextures
+                    mergeMaterials, aggressive, embedTextures, basisUniversal
                 });
             }
         }
 
         if (expectResizeOpt) {
             throw new Error('Expected texture size');
+        } else if (expectLogLevel) {
+            throw new Error('Expected log level');
+        } else if (expectBasisu) {
+            throw new Error('Expected basisu mode');
         } else if (inputPath === null) {
             throw new Error('Input path not specified');
         } else if (outputFolder === null) {
@@ -228,7 +210,7 @@ async function main() {
         await splitModel(inputPath, outputFolder, lods, {
             defaultEmbedTextures, defaultTextureResizing, force,
             defaultOptimizeSceneHierarchy, defaultMergeMaterials,
-            defaultAggressive, logger
+            defaultAggressive, defaultBasisUniversal, logger
         });
     } catch(err) {
         if (err instanceof CollisionError) {

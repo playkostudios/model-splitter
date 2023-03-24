@@ -7,7 +7,7 @@ import { assertFreeFile } from './assertFreeFile';
 import { statSync, writeFileSync } from 'node:fs';
 import { resizeTexture } from './resizeTexture';
 import { shiftID } from './shiftID';
-import { parseBuffer } from './caching';
+import { bufferHash, parseBuffer } from './caching';
 
 import type { IGLTF, ITextureInfo, MaterialAlphaMode } from 'babylonjs-gltf2interface';
 import type { ConvertedMaterial, ConvertedMaterialTextureName, Metadata } from './output-types';
@@ -33,40 +33,39 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
     // and replace original materials with dummies
     // XXX map contains buffers, then buffer views and their replacements
     const replacedBufferViews = new Map<number, Array<[bufferViewIdx: number, content: Buffer | null, contentHash: string, oldContentLen: number, oldContentOffset: number]>>();
-    if (expectedImageCount > 0) {
-        for (let i = 0; i < expectedImageCount; i++) {
-            logger.debug(`Resizing image ${i}`);
+    for (let i = 0; i < expectedImageCount; i++) {
+        const img = gltf.images[i];
 
-            const [inBuf, origHash] = originalImages[i];
-
-            logger.debug(`  - input hash: ${origHash}`);
-            logger.debug(`  - options: ${texResizeOpt}`);
-            logger.debug(`  - will be embedded: ${embedTextures}`);
-
-            const [resBuf, resHash, wasCached] = await resizeTexture(textures, origHash, texResizeOpt, !embedTextures, inBuf, logger);
-
-            logger.debug(`  - output hash: ${resHash}`);
-
-            if (wasCached) {
-                logger.debug('  - (output was cached)');
-            }
-
-            const img = gltf.images[i];
-
-            if (img === undefined) {
-                throw new Error(`Unexpected missing image index ${i}`)
-            }
+        if (img.mimeType as string === 'image/ktx2') {
+            // basisu image. just mark as external and remove bufferview
+            logger.debug(`Marking basisu image ${i} as external`);
 
             const bufferViewIdx = img.bufferView;
-
             if (bufferViewIdx === undefined) {
-                throw new Error('Unexpected image with no bufferView');
+                throw new Error(`Image ${i} is a KTX2 image, but had no bufferView`);
             }
 
             const bufferView = gltf.bufferViews[bufferViewIdx];
             const bufferIdx = bufferView.buffer;
             const bufferLen = bufferView.byteLength;
             const bufferOffset = bufferView.byteOffset ?? 0;
+            const buffer = parseBuffer(parsedBuffers, gltf.buffers[bufferIdx]);
+            const imageBuffer = buffer.subarray(bufferOffset, bufferOffset + bufferLen);
+
+            const hash = `${bufferHash(imageBuffer)}.ktx2`;
+
+            let needsPush = true;
+            for (let t = 0; t < textures.length; t++) {
+                const oHash = textures[t][1];
+                if (hash === oHash) {
+                    needsPush = false;
+                    break;
+                }
+            }
+
+            if (needsPush) {
+                textures.push([[['keep', hash]], hash, imageBuffer, true]);
+            }
 
             let bufferViewList = replacedBufferViews.get(bufferIdx);
             if (bufferViewList === undefined) {
@@ -75,8 +74,58 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
                 logger.debug(`  - texture replaces buffer view ${bufferViewIdx} (buffer ${bufferIdx})`);
             }
 
-            bufferViewList.push([bufferViewIdx, embedTextures ? resBuf : null, resHash, bufferLen, bufferOffset]);
+            bufferViewList.push([bufferViewIdx, null, hash, bufferLen, bufferOffset]);
+
+            continue;
         }
+
+        // resize
+        logger.debug(`Resizing image ${i}`);
+
+        const origImgTuple = originalImages[i];
+
+        if (origImgTuple === null) {
+            logger.warn(`Image ${i} was invalid, ignored`);
+            continue;
+        }
+
+        const [inBuf, origHash] = origImgTuple;
+
+        logger.debug(`  - input hash: ${origHash}`);
+        logger.debug(`  - options: ${texResizeOpt}`);
+        logger.debug(`  - will be embedded: ${embedTextures}`);
+
+        const [resBuf, resHash, wasCached] = await resizeTexture(textures, origHash, texResizeOpt, !embedTextures, inBuf, logger);
+
+        logger.debug(`  - output hash: ${resHash}`);
+
+        if (wasCached) {
+            logger.debug('  - (output was cached)');
+        }
+
+        if (img === undefined) {
+            throw new Error(`Unexpected missing image index ${i}`)
+        }
+
+        const bufferViewIdx = img.bufferView;
+
+        if (bufferViewIdx === undefined) {
+            throw new Error('Unexpected image with no bufferView');
+        }
+
+        const bufferView = gltf.bufferViews[bufferViewIdx];
+        const bufferIdx = bufferView.buffer;
+        const bufferLen = bufferView.byteLength;
+        const bufferOffset = bufferView.byteOffset ?? 0;
+
+        let bufferViewList = replacedBufferViews.get(bufferIdx);
+        if (bufferViewList === undefined) {
+            bufferViewList = [];
+            replacedBufferViews.set(bufferIdx, bufferViewList);
+            logger.debug(`  - texture replaces buffer view ${bufferViewIdx} (buffer ${bufferIdx})`);
+        }
+
+        bufferViewList.push([bufferViewIdx, embedTextures ? resBuf : null, resHash, bufferLen, bufferOffset]);
     }
 
     // modify buffers
