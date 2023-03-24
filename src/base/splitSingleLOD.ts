@@ -36,73 +36,6 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
     for (let i = 0; i < expectedImageCount; i++) {
         const img = gltf.images[i];
 
-        if (img.mimeType as string === 'image/ktx2') {
-            // basisu image. just mark as external and remove bufferview
-            logger.debug(`Marking basisu image ${i} as external`);
-
-            const bufferViewIdx = img.bufferView;
-            if (bufferViewIdx === undefined) {
-                throw new Error(`Image ${i} is a KTX2 image, but had no bufferView`);
-            }
-
-            const bufferView = gltf.bufferViews[bufferViewIdx];
-            const bufferIdx = bufferView.buffer;
-            const bufferLen = bufferView.byteLength;
-            const bufferOffset = bufferView.byteOffset ?? 0;
-            const buffer = parseBuffer(parsedBuffers, gltf.buffers[bufferIdx]);
-            const imageBuffer = buffer.subarray(bufferOffset, bufferOffset + bufferLen);
-
-            const hash = `${bufferHash(imageBuffer)}.ktx2`;
-
-            let needsPush = true;
-            for (let t = 0; t < textures.length; t++) {
-                const oHash = textures[t][1];
-                if (hash === oHash) {
-                    needsPush = false;
-                    break;
-                }
-            }
-
-            if (needsPush) {
-                textures.push([[['keep', hash]], hash, imageBuffer, true]);
-            }
-
-            let bufferViewList = replacedBufferViews.get(bufferIdx);
-            if (bufferViewList === undefined) {
-                bufferViewList = [];
-                replacedBufferViews.set(bufferIdx, bufferViewList);
-                logger.debug(`  - texture replaces buffer view ${bufferViewIdx} (buffer ${bufferIdx})`);
-            }
-
-            bufferViewList.push([bufferViewIdx, null, hash, bufferLen, bufferOffset]);
-
-            continue;
-        }
-
-        // resize
-        logger.debug(`Resizing image ${i}`);
-
-        const origImgTuple = originalImages[i];
-
-        if (origImgTuple === null) {
-            logger.warn(`Image ${i} was invalid, ignored`);
-            continue;
-        }
-
-        const [inBuf, origHash] = origImgTuple;
-
-        logger.debug(`  - input hash: ${origHash}`);
-        logger.debug(`  - options: ${texResizeOpt}`);
-        logger.debug(`  - will be embedded: ${embedTextures}`);
-
-        const [resBuf, resHash, wasCached] = await resizeTexture(textures, origHash, texResizeOpt, !embedTextures, inBuf, logger);
-
-        logger.debug(`  - output hash: ${resHash}`);
-
-        if (wasCached) {
-            logger.debug('  - (output was cached)');
-        }
-
         if (img === undefined) {
             throw new Error(`Unexpected missing image index ${i}`)
         }
@@ -117,15 +50,73 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
         const bufferIdx = bufferView.buffer;
         const bufferLen = bufferView.byteLength;
         const bufferOffset = bufferView.byteOffset ?? 0;
+        let outBuf, outHash;
+
+        if (img.mimeType as string === 'image/ktx2') {
+            // basisu image. just mark as external and remove bufferview, unless
+            // embedded textures are enabled (do nothing to bufferview)
+            logger.debug(`Found final basisu image ${i}`);
+
+            const buffer = parseBuffer(parsedBuffers, gltf.buffers[bufferIdx]);
+            const imageBuffer = buffer.subarray(bufferOffset, bufferOffset + bufferLen);
+            const hash = `${bufferHash(imageBuffer)}.ktx2`;
+
+            if (embedTextures) {
+                logger.warn(`This KTX2 image is being stored externally. File sizes will still be lower, but runtime GPU memory usage will be as high as a regular image, since the image will be transcoded to PNG. Image: ${hash}`);
+            }
+
+            let needsPush = true;
+            for (let t = 0; t < textures.length; t++) {
+                const oHash = textures[t][1];
+                if (hash === oHash) {
+                    textures[t][3] ||= !embedTextures;
+                    needsPush = false;
+                    break;
+                }
+            }
+
+            if (needsPush) {
+                textures.push([[], hash, imageBuffer, !embedTextures]);
+            }
+
+            outBuf = imageBuffer;
+            outHash = hash;
+        } else {
+            // resize
+            logger.debug(`Resizing image ${i}`);
+
+            const origImgTuple = originalImages[i];
+            if (origImgTuple === null) {
+                logger.warn(`Image ${i} was invalid, ignored`);
+                continue;
+            }
+
+            const [inBuf, origHash] = origImgTuple;
+
+            logger.debug(`  - input hash: ${origHash}`);
+            logger.debug(`  - options: ${texResizeOpt}`);
+            logger.debug(`  - will be embedded: ${embedTextures}`);
+
+            const [resBuf, resHash, wasCached] = await resizeTexture(textures, origHash, texResizeOpt, !embedTextures, inBuf, logger);
+
+            logger.debug(`  - output hash: ${resHash}`);
+
+            if (wasCached) {
+                logger.debug('  - (output was cached)');
+            }
+
+            outBuf = resBuf;
+            outHash = resHash;
+        }
 
         let bufferViewList = replacedBufferViews.get(bufferIdx);
         if (bufferViewList === undefined) {
             bufferViewList = [];
             replacedBufferViews.set(bufferIdx, bufferViewList);
-            logger.debug(`  - texture replaces buffer view ${bufferViewIdx} (buffer ${bufferIdx})`);
         }
 
-        bufferViewList.push([bufferViewIdx, embedTextures ? resBuf : null, resHash, bufferLen, bufferOffset]);
+        logger.debug(`  - texture replaces buffer view ${bufferViewIdx} (buffer ${bufferIdx})`);
+        bufferViewList.push([bufferViewIdx, embedTextures ? outBuf : null, outHash, bufferLen, bufferOffset]);
     }
 
     // modify buffers
@@ -329,12 +320,32 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
         if (gltf.textures) {
             for (let t = gltf.textures.length - 1; t >= 0; t--) {
                 const texture = gltf.textures[t];
-                const hash = externalImages.get(texture.source);
+                let source: number = texture.source;
+                let mustBeExternal = false;
+
+                if (texture.extensions) {
+                    for (const extensionName of Object.getOwnPropertyNames(texture.extensions)) {
+                        if (extensionName === 'KHR_texture_basisu') {
+                            mustBeExternal = !embedTextures;
+                            source = texture.extensions[extensionName].source as number;
+                            delete texture.extensions[extensionName];
+                            break;
+                        }
+                    }
+
+                    if (Object.getOwnPropertyNames(texture.extensions).length === 0) {
+                        delete texture.extensions;
+                    }
+                }
+
+                const hash = externalImages.get(source);
 
                 if (hash !== undefined) {
                     gltf.textures.splice(t, 1);
                     logger.debug(`  - removed external texture ${t} (hash ${hash})`);
                     externalTextures.set(t, hash);
+                } else if (mustBeExternal) {
+                    throw new Error("Texture that uses Basis Universal wasn't marked for deletion");
                 } else {
                     if (texture.sampler !== undefined) {
                         dependedSamplers.add(texture.sampler);
@@ -525,6 +536,21 @@ export async function splitSingleLOD(outName: string, outPath: string, metadata:
                     }
                 }
             }
+        }
+    }
+
+    // remove basisu extensions
+    if (!embedTextures) {
+        const basisuUsedIdx = gltf.extensionsUsed?.indexOf('KHR_texture_basisu') ?? -1;
+        if (basisuUsedIdx !== -1) {
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            gltf.extensionsUsed!.splice(basisuUsedIdx, 1);
+        }
+
+        const basisuReqIdx = gltf.extensionsRequired?.indexOf('KHR_texture_basisu') ?? -1;
+        if (basisuReqIdx !== -1) {
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            gltf.extensionsRequired!.splice(basisuReqIdx, 1);
         }
     }
 

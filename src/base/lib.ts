@@ -85,8 +85,8 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         // parse other options
         let embedTextures = lod.embedTextures ?? defaultEmbedTextures;
 
-        if (basisUniversal !== 'disabled') {
-            logger.warn('Basis Universal enabled for model, texture embedding force-disabled');
+        if (basisUniversal !== 'disabled' && embedTextures) {
+            logger.warn("Basis Universal enabled for model, texture embedding force-disabled; Wonderland Engine doesn't support loading KTX2 textures, so they must be stored externally to be transcoded at runtime");
             embedTextures = false;
         }
 
@@ -188,7 +188,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     let gltfFirstNonBasisU = null;
 
     for (let i = 0; i < gacCount; i++) {
-        if (gltfpackArgCombos[i][4] === 'disabled') {
+        if (gltfpackArgCombos[i][4] !== 'disabled') {
             continue;
         }
 
@@ -226,6 +226,10 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
 
                 originalImages.push([imageBuffer, hash]);
             }
+        }
+    } else {
+        for (let i = 0; i < expectedImageCount; i++) {
+            originalImages.push(null);
         }
     }
 
