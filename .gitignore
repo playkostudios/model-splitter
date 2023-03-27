@@ -5,7 +5,9 @@ node_modules/
 /example-project/cache/
 /example-project/static/*
 /example-project/imgui.ini
-!/example-project/static/.keepme
+!/example-project/static/basis_loader.js
+!/example-project/static/basis_transcoder.js
+!/example-project/static/basis_transcoder.wasm
 /*.glb
 /*.gltf
 *.sublime-project
