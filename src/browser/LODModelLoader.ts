@@ -4,16 +4,17 @@ import { Texture } from '@wonderlandengine/api';
 
 import type { Material, MeshComponent, Object as $Object, WonderlandEngine } from '@wonderlandengine/api';
 import type { ConvertedMaterial, ConvertedMaterialTextureName, ConvertedMaterialUniformName, Metadata } from '../base/output-types';
+import type { ModelSplitterBasisLoader } from './ModelSplitterBasisLoader';
 
 type ExtMeshData = Record<number, Record<string, { replacedMaterials: Array<[meshIdx: number, matIdx: number]> }>>;
 type ExtRootData = Record<string, { convertedMaterials: Array<ConvertedMaterial> }>;
 type ExtData = { root: ExtRootData, mesh: ExtMeshData };
 
 export class LODModelLoader {
-    textures = new Map<string, Texture | null>()
+    textures = new Map<string, Texture | null>();
     cdnRoot?: string;
 
-    constructor(public engine: WonderlandEngine, cdnRoot?: string, public timeout = 10000) {
+    constructor(public engine: WonderlandEngine, cdnRoot?: string, public basisLoader?: ModelSplitterBasisLoader, public timeout = 10000) {
         this.cdnRoot = cdnRoot === '' ? undefined : cdnRoot;
         if (this.cdnRoot !== undefined && this.cdnRoot.startsWith('~')) {
             this.cdnRoot = new URL(this.cdnRoot.substring(1), window.location.href).href;
@@ -113,11 +114,28 @@ export class LODModelLoader {
             return texture;
         }
 
+        let needsRelease = false;
         try {
-            texture = new Texture(this.engine, await loadImage(texSrc, this.cdnRoot, this.timeout));
+            let image: HTMLImageElement | HTMLCanvasElement;
+            if (texSrc.toLowerCase().endsWith('.ktx2')) {
+                if (this.basisLoader === undefined) {
+                    throw new Error("Can't load KTX2 image; ModelSplitterBasisLoader instance (this.basisLoader) not set in LODModelLoader");
+                }
+
+                image = await this.basisLoader.loadFromUrl(texSrc, this.cdnRoot);
+                needsRelease = true;
+            } else {
+                image = await loadImage(texSrc, this.cdnRoot, this.timeout);
+            }
+
+            texture = new Texture(this.engine, image);
         } catch (err) {
             console.error(err);
             console.warn(`Failed to download or initialize texture "${texSrc}"`);
+        }
+
+        if (needsRelease) {
+            this.basisLoader?.done();
         }
 
         if (texture !== null && !texture.valid) {

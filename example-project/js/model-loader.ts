@@ -1,5 +1,5 @@
 import { Component, Type } from '@wonderlandengine/api';
-import { LODModelLoader } from '../../lib/runtime-lib.esm';
+import { LODModelLoader, ModelSplitterBasisLoader } from '../../lib/runtime-lib.esm';
 
 export class ModelLoader extends Component {
     static TypeName = 'model-loader';
@@ -15,7 +15,8 @@ export class ModelLoader extends Component {
     }
 
     init() {
-        this.modelLoader = new LODModelLoader(this.engine, this.cdnRoot);
+        const basisLoader = new ModelSplitterBasisLoader('basis_loader.js');
+        this.modelLoader = new LODModelLoader(this.engine, this.cdnRoot, basisLoader);
     }
 
     start() {

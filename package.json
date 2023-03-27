@@ -67,6 +67,7 @@
     "@typescript-eslint/eslint-plugin": "^5.55.0",
     "@typescript-eslint/parser": "^5.55.0",
     "@wonderlandengine/api": "0.9.8",
+    "async-mutex": "^0.4.0",
     "babylonjs-gltf2interface": "^5.49.0",
     "cesium": "^1.103.0",
     "colors": "1.4.0",
