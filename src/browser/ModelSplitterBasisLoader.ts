@@ -43,7 +43,7 @@ out vec2 uvPass;
 
 void main()
 {
-    uvPass      = uv;
+    uvPass      = vec2(uv.x, 1.0 - uv.y);
     gl_Position = vec4(uv * 2.0 - vec2(1.0, 1.0), 0.0, 1.0);
 }\
 `;
