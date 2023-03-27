@@ -129,6 +129,10 @@ export class LODModelLoader {
             }
 
             texture = new Texture(this.engine, image);
+
+            if (needsRelease) {
+                texture.update();
+            }
         } catch (err) {
             console.error(err);
             console.warn(`Failed to download or initialize texture "${texSrc}"`);

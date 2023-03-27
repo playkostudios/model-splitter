@@ -12,7 +12,6 @@ import { Mutex } from 'async-mutex';
  */
 
 export interface TextureResult {
-    mipLevels: number,
     width: number,
     height: number,
     texture: WebGLTexture
@@ -59,7 +58,7 @@ out vec4 color;
 
 void main()
 {
-    color = vec4(texture(sampler, uvPass).xyz, 1.0);
+    color = texture(sampler, uvPass);
 }\
 `
 
@@ -96,7 +95,7 @@ class PendingTextureRequest {
         });
     }
 
-    uploadImageData(webglFormat: WebGLFormat, buffer: ArrayBuffer, mipLevels: Array<{ level: number, width: number, height: number, offset: number, size: number }>) {
+    uploadImageData(webglFormat: WebGLFormat, buffer: ArrayBuffer, width: number, height: number) {
         const gl = this.gl;
         const texture = gl.createTexture();
 
@@ -106,50 +105,45 @@ class PendingTextureRequest {
 
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mipLevels.length > 1 || webglFormat.uncompressed ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
         let levelData = null;
 
-        for (const mipLevel of mipLevels) {
-            if (!webglFormat.uncompressed) {
-                levelData = new Uint8Array(buffer, mipLevel.offset, mipLevel.size);
-                gl.compressedTexImage2D(
-                    gl.TEXTURE_2D,
-                    mipLevel.level,
-                    webglFormat.format,
-                    mipLevel.width,
-                    mipLevel.height,
-                    0,
-                    levelData
-                );
-            } else {
-                switch (webglFormat.type) {
-                case WebGLRenderingContext.UNSIGNED_SHORT_4_4_4_4:
-                case WebGLRenderingContext.UNSIGNED_SHORT_5_5_5_1:
-                case WebGLRenderingContext.UNSIGNED_SHORT_5_6_5:
-                    levelData = new Uint16Array(buffer, mipLevel.offset, mipLevel.size / 2);
-                    break;
-                default:
-                    levelData = new Uint8Array(buffer, mipLevel.offset, mipLevel.size);
-                    break;
-                }
-
-                gl.texImage2D(
-                    gl.TEXTURE_2D,
-                    mipLevel.level,
-                    webglFormat.format,
-                    mipLevel.width,
-                    mipLevel.height,
-                    0,
-                    webglFormat.format,
-                    webglFormat.type,
-                    levelData
-                );
+        // only getting first mip level, since we're rendering a fullscreen quad
+        if (!webglFormat.uncompressed) {
+            levelData = new Uint8Array(buffer);
+            gl.compressedTexImage2D(
+                gl.TEXTURE_2D,
+                0,
+                webglFormat.format,
+                width,
+                height,
+                0,
+                levelData
+            );
+        } else {
+            switch (webglFormat.type) {
+            case WebGLRenderingContext.UNSIGNED_SHORT_4_4_4_4:
+            case WebGLRenderingContext.UNSIGNED_SHORT_5_5_5_1:
+            case WebGLRenderingContext.UNSIGNED_SHORT_5_6_5:
+                levelData = new Uint16Array(buffer, 0, buffer.byteLength / 2);
+                break;
+            default:
+                levelData = new Uint8Array(buffer);
+                break;
             }
-        }
 
-        if (webglFormat.uncompressed && mipLevels.length == 1) {
-            gl.generateMipmap(gl.TEXTURE_2D);
+            gl.texImage2D(
+                gl.TEXTURE_2D,
+                0,
+                webglFormat.format,
+                width,
+                height,
+                0,
+                webglFormat.format,
+                webglFormat.type,
+                levelData
+            );
         }
 
         return texture;
@@ -198,12 +192,6 @@ export class ModelSplitterBasisLoader {
             throw new Error(`Failed to link shader program: ${gl.getProgramInfoLog(shaderProgram)}`);
         }
 
-        // create texture
-        const texture = gl.createTexture();
-        if (texture === null) {
-            throw new Error('Failed to create WebGL texture');
-        }
-
         // create VBO
         const vbo = gl.createBuffer();
         if (vbo === null) {
@@ -212,9 +200,8 @@ export class ModelSplitterBasisLoader {
 
         gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
         gl.bufferData(gl.ARRAY_BUFFER, TRI_DATA, gl.STATIC_DRAW);
-        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(0);
-        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
         gl.useProgram(shaderProgram);
         const samplerLoc = gl.getUniformLocation(shaderProgram, 'sampler');
         gl.uniform1i(samplerLoc, 0);
@@ -269,7 +256,8 @@ export class ModelSplitterBasisLoader {
                 pendingTexture.texture = pendingTexture.uploadImageData(
                     msg.data.webglFormat,
                     msg.data.buffer,
-                    msg.data.mipLevels
+                    msg.data.width,
+                    msg.data.height,
                 );
             } catch (err) {
                 pendingTexture.reject(err);
@@ -277,9 +265,8 @@ export class ModelSplitterBasisLoader {
             }
 
             pendingTexture.resolve({
-                mipLevels: msg.data.mipLevels.length,
-                width: msg.data.mipLevels[0].width,
-                height: msg.data.mipLevels[0].height,
+                width: msg.data.width,
+                height: msg.data.height,
                 texture: pendingTexture.texture
             });
         };
@@ -301,12 +288,9 @@ export class ModelSplitterBasisLoader {
             const pendingTexture = new PendingTextureRequest(this.gl, url);
             this.pendingTextures.set(this.nextPendingTextureId, pendingTexture);
 
-            console.debug(this.supportedFormats);
-
             this.worker.postMessage({
                 id: this.nextPendingTextureId,
                 url: url,
-                allowSeparateAlpha: false,
                 supportedFormats: this.supportedFormats
             });
 
@@ -316,6 +300,7 @@ export class ModelSplitterBasisLoader {
             // paint to canvas
             this.canvas.width = result.width;
             this.canvas.height = result.height;
+            this.gl.viewport(0, 0, result.width, result.height);
             this.gl.clearColor(0, 0, 0, 0);
             this.gl.clear(this.gl.COLOR_BUFFER_BIT);
             this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
