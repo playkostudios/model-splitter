@@ -13,8 +13,10 @@
   ],
   "devDependencies": {
     "@wonderlandengine/api": "0.9.8",
-    "@wonderlandengine/components": "^1.0.0-rc.2",
     "gl-matrix": "^3.4.3",
     "shx": "^0.3.4"
+  },
+  "dependencies": {
+    "@wonderlandengine/components": "^1.0.0-rc.2"
   }
 }
