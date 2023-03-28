@@ -26,6 +26,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     const defaultMergeMaterials = options.defaultMergeMaterials ?? true;
     const defaultAggressive = options.defaultAggressive ?? false;
     const defaultBasisUniversal = options.defaultBasisUniversal ?? 'disabled';
+    const gltfpackPath = options.gltfpackPath ?? null;
     let force = options.force ?? false;
     const logger = options.logger ?? new ConsoleLogger();
 
@@ -136,7 +137,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
 
     for (let i = 0; i < gacCount; i++) {
         const gacIdx = i;
-        gltfpackPromises.push(simplifyModel(tempFolderPath, wlefiedModel, gltfpackArgCombos, gltfpackOutputs, gacIdx, logger));
+        gltfpackPromises.push(simplifyModel(tempFolderPath, gltfpackPath, wlefiedModel, gltfpackArgCombos, gltfpackOutputs, gacIdx, logger));
     }
 
     await Promise.all(gltfpackPromises);

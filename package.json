@@ -9,7 +9,7 @@
   "bin": "./lib/cli.js",
   "packageManager": "pnpm@8.0.0",
   "scripts": {
-    "prepare": "pnpm rebuild --config.platform=linux --config.arch=x64 --config.libc=glibc sharp && pnpm rebuild --config.platform=win32 --config.arch=x64 sharp && cd nwjs-out && npm install",
+    "prepare": "pnpm run copy-third-party-blobs && pnpm rebuild --config.platform=linux --config.arch=x64 --config.libc=glibc sharp && pnpm rebuild --config.platform=win32 --config.arch=x64 sharp && cd nwjs-out && npm install",
     "lint": "eslint ./src",
     "clean": "shx rm -rf lib/* pkgs/* model-splitter-gui-linux.tar.gz model-splitter-gui-win.zip nwjs-pkg-linux nwjs-pkg-win nwjs-out/*-bundle.js nwjs-out/*-bundle.js.map nwjs-out/library.wasm nwjs-out/draco_decoder_gltf.wasm nwjs-out/mikktspace_main_bg.wasm nwjs-out/Build example-project/cache example-project/deploy example-project/static/basis-transcoder-worker.js example-project/static/basis-transcoder-worker.js.map lib-static/basis-transcoder-worker.js lib-static/basis-transcoder-worker.js.map",
     "copy-cesium-blobs": "shx mkdir -p ./lib/Build/CesiumUnminified/ && shx cp ./node_modules/cesium/Build/CesiumUnminified/index.cjs ./lib/Build/CesiumUnminified/index.cjs",

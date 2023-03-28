@@ -24,6 +24,7 @@ export interface SplitModelOptions {
     defaultMergeMaterials?: boolean;
     defaultAggressive?: boolean;
     defaultBasisUniversal?: BasisUniversalMode;
+    gltfpackPath?: string;
     force?: boolean;
     logger?: ILogger;
 }

@@ -1,6 +1,7 @@
 import { parseTextureSize } from '../base/parseTextureSize';
 import { Verbosity } from '@gltf-transform/core';
 import { InvalidInputError, CollisionError } from '../base/ModelSplitterError';
+import { getDefaultGltfpackPath } from '../base/getDefaultGltfpackPath';
 // expose node-notifier's notify function
 import { notify } from 'node-notifier';
 
@@ -290,6 +291,10 @@ async function startRenderer(main: HTMLElement): Promise<void> {
     const outputFolderInput = getElement<HTMLInputElement>('output-folder-input');
     const outputFolderButton = getElement<HTMLButtonElement>('output-folder-button');
 
+    const gltfpackBinPicker = getElement<HTMLInputElement>('gltfpack-bin-picker');
+    const gltfpackBinInput = getElement<HTMLInputElement>('gltfpack-bin-input');
+    const gltfpackBinButton = getElement<HTMLButtonElement>('gltfpack-bin-button');
+
     const embedTexturesInput = getElement<HTMLInputElement>('embed-textures-input');
     const forceInput = getElement<HTMLInputElement>('force-input');
     const optimizeSceneHierarchyInput = getElement<HTMLInputElement>('optimize-scene-hierarchy-input');
@@ -390,6 +395,11 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                 throw new Error('No output folder specified');
             }
 
+            const gltfpackPath = gltfpackBinInput.value;
+            if (gltfpackPath === '') {
+                log(textOutput, scrollPin, logLevel, 'warn', null, `No gltfpack binary specified. Assuming that the binary is globally accessible via the PATH variable ("${getDefaultGltfpackPath()}")`);
+            }
+
             const force = forceInput.checked;
             const defaultEmbedTextures = embedTexturesInput.checked;
             const defaultOptimizeSceneHierarchy = optimizeSceneHierarchyInput.checked;
@@ -463,7 +473,8 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                 await splitModel(inputPath, outputPath, lods, {
                     defaultEmbedTextures, defaultTextureResizing,
                     defaultOptimizeSceneHierarchy, defaultMergeMaterials,
-                    defaultAggressive, defaultBasisUniversal, force
+                    defaultAggressive, defaultBasisUniversal, gltfpackPath,
+                    force
                 }, worker);
             } catch(err: unknown) {
                 assertCollisionError(err);
@@ -472,7 +483,8 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                     await splitModel(inputPath, outputPath, lods, {
                         defaultEmbedTextures, defaultTextureResizing,
                         defaultOptimizeSceneHierarchy, defaultMergeMaterials,
-                        defaultAggressive, defaultBasisUniversal, force: true
+                        defaultAggressive, defaultBasisUniversal, gltfpackPath,
+                        force: true
                     }, worker);
                 } else {
                     throw err;
@@ -527,6 +539,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
 
     setupFileFolderPicker(inputModelPicker, inputModelInput, inputModelButton);
     setupFileFolderPicker(outputFolderPicker, outputFolderInput, outputFolderButton);
+    setupFileFolderPicker(gltfpackBinPicker, gltfpackBinInput, gltfpackBinButton);
 
     const lodListChildren = lodList.children;
     const meshQualityTooltip = (lodListChildren[1] as HTMLElement).title;

@@ -1,16 +1,26 @@
 const { glbToGltf } = require('gltf-pipeline');
 
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { InvalidInputError } from './ModelSplitterError';
 import { resolve as resolvePath } from 'node:path';
 import { spawn } from 'node:child_process';
+import { getDefaultGltfpackPath } from './getDefaultGltfpackPath';
 
 import type { ILogger } from '@gltf-transform/core';
 import type { GltfpackArgCombo } from './internal-types';
 import type { IGLTF } from 'babylonjs-gltf2interface';
 import type { BasisUniversalMode, PackedResizeOption } from './external-types';
 
-function gltfpackSpawn(workingDir: string, gltfpackPath: string, gltfpackArgs: Array<string>, logger: ILogger): Promise<void> {
+let run = 0;
+
+function gltfpackSpawn(workingDir: string, maybeGltfpackPath: string | null, gltfpackArgs: Array<string>, logger: ILogger): Promise<void> {
+    let gltfpackPath: string;
+    if (maybeGltfpackPath === null || maybeGltfpackPath === '') {
+        gltfpackPath = getDefaultGltfpackPath();
+    } else {
+        gltfpackPath = maybeGltfpackPath;
+    }
+
     logger.debug(`Spawning process: ${gltfpackPath} ${gltfpackArgs.join(' ')}`);
 
     return new Promise((resolve, reject) => {
@@ -70,7 +80,11 @@ function gltfpackSpawn(workingDir: string, gltfpackPath: string, gltfpackArgs: A
     });
 }
 
-async function gltfpackPass(tempFolderPath: string, modelBuffer: Uint8Array, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, aggressive: boolean, basisu: BasisUniversalMode, basisuResize: PackedResizeOption, logger: ILogger): Promise<Uint8Array> {
+async function gltfpackPass(tempFolderPath: string, gltfpackPath: string | null, modelBuffer: Uint8Array, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, aggressive: boolean, basisu: BasisUniversalMode, basisuResize: PackedResizeOption, logger: ILogger): Promise<Uint8Array> {
+    // make temp folder
+    logger.debug(`Making temporary sub-folder "${tempFolderPath}"...`);
+    mkdirSync(tempFolderPath, { recursive: true });
+
     // build argument list
     const inputPath = resolvePath(tempFolderPath, 'input-model.glb');
     const outputPath = resolvePath(tempFolderPath, 'output-model.glb');
@@ -126,21 +140,21 @@ async function gltfpackPass(tempFolderPath: string, modelBuffer: Uint8Array, lod
     writeFileSync(inputPath, modelBuffer);
     logger.debug(`Done writing`);
 
-    await gltfpackSpawn(tempFolderPath, 'gltfpack', args, logger);
+    await gltfpackSpawn(tempFolderPath, gltfpackPath, args, logger);
 
     logger.debug(`Reading from temporary output model file "${outputPath}"`);
     const output = readFileSync(outputPath);
     logger.debug(`Done reading`);
 
-    logger.debug('Deleting temporary files...');
-    rmSync(inputPath);
-    rmSync(outputPath);
+    // delete temp folder
+    logger.debug(`Deleting temporary sub-folder "${tempFolderPath}"...`);
+    rmSync(tempFolderPath, { recursive: true, force: true });
     return output;
 }
 
-export function simplifyModel(tempFolderPath: string, modelBuffer: Uint8Array, gltfpackArgCombos: Array<GltfpackArgCombo>, gltfpackOutputs: Array<IGLTF>, gacIdx: number, logger: ILogger) {
+export function simplifyModel(tempFolderPath: string, gltfpackPath: string | null, modelBuffer: Uint8Array, gltfpackArgCombos: Array<GltfpackArgCombo>, gltfpackOutputs: Array<IGLTF>, gacIdx: number, logger: ILogger) {
     return new Promise<void>((resolve, reject) => {
-        gltfpackPass(tempFolderPath, modelBuffer, ...gltfpackArgCombos[gacIdx], logger).then(buf => {
+        gltfpackPass(resolvePath(tempFolderPath, `run-${run++}`), gltfpackPath, modelBuffer, ...gltfpackArgCombos[gacIdx], logger).then(buf => {
             return glbToGltf(buf);
         }).then(results => {
             if (results.separateResources && Object.getOwnPropertyNames(results.separateResources).length > 0) {

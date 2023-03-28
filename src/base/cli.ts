@@ -4,6 +4,7 @@ import { version } from '../../package.json';
 import { parseTextureSize } from './parseTextureSize';
 import { Verbosity } from '@gltf-transform/core';
 import { ConsoleLogger } from './ConsoleLogger';
+import { getDefaultGltfpackPath } from './getDefaultGltfpackPath';
 
 import type { LODConfigList, PackedResizeOption, DefaultablePackedResizeOption, BasisUniversalMode } from './lib';
 
@@ -34,6 +35,7 @@ Options:
 - --aggressive: Simplify mesh disregarding quality. Can be overridden per LOD
 - --texture-size <percentage or target side length>: The texture size to use for each generated LOD if it's not specified in the LOD arguments
 - --basisu <disabled, uastc, etc1s>: Should textures be compressed with basisu? Can be overridden per LOD. Disabled by default
+- --gltfpack-path <gltfpack bin path>: Path to gltfpack binary. If none is specified, then the binary is assumed to be accessible via the PATH variable ("${getDefaultGltfpackPath()}")
 - --log-level <log level>: The log level to use. Can be: 'none', 'error', 'warning', 'log' or 'debug'
 - --version: Print version and exit
 - --help: Print help and exit
@@ -53,6 +55,7 @@ async function main() {
     let defaultMergeMaterials = true;
     let defaultAggressive = false;
     let defaultBasisUniversal: BasisUniversalMode = 'disabled';
+    let gltfpackPath: string | undefined;
     let logLevel: Verbosity | null = null;
     const lods: LODConfigList = [];
 
@@ -61,6 +64,7 @@ async function main() {
         let expectResizeOpt = false;
         let expectLogLevel = false;
         let expectBasisu = false;
+        let expectGltfpackPath = false;
 
         for (const arg of cliArgs) {
             if (inputPath === null) {
@@ -94,6 +98,9 @@ async function main() {
                 } else {
                     throw new Error(`Invalid basisu "${arg}"`);
                 }
+            } else if (expectGltfpackPath) {
+                expectGltfpackPath = false;
+                gltfpackPath = arg;
             } else if (arg === '--help') {
                 printHelp(process.argv[1]);
                 process.exit(0);
@@ -116,6 +123,8 @@ async function main() {
                 expectLogLevel = true;
             } else if (arg === '--basisu') {
                 expectBasisu = true;
+            } else if (arg === '--gltfpack-path') {
+                expectGltfpackPath = true;
             } else {
                 if (arg.startsWith('--')) {
                     throw new Error(`Unknown option: ${arg}`);
@@ -210,7 +219,7 @@ async function main() {
         await splitModel(inputPath, outputFolder, lods, {
             defaultEmbedTextures, defaultTextureResizing, force,
             defaultOptimizeSceneHierarchy, defaultMergeMaterials,
-            defaultAggressive, defaultBasisUniversal, logger
+            defaultAggressive, defaultBasisUniversal, gltfpackPath, logger
         });
     } catch(err) {
         if (err instanceof CollisionError) {
