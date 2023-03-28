@@ -4,11 +4,16 @@ Splits a model into multiple models with different LOD levels and downscales
 textures. Textures can be embedded in the model, or stored separately alongside
 a metadata JSON file, which needs to be parsed with a custom parser.
 
+There is no support for Draco mesh compression. There is support for KTX2
+texture compression, however:
+- It is transcoded to an uncompressed format at runtime, so all GPU memory benefits are lost
+- The textures can't be embedded, otherwise Wonderland Engine's GLB texture loader is used and the runtime crashes, since the GLB loader doesn't support KTX2
+
 This is only meant to be used with Wonderland Engine, and with a custom loader.
 A lot of the features that exist in this tool are to address current limitations
 in the engine. Do not expect support for other engines. For other engines it's
 much better to just use `gltfpack` separately for each LOD, which will also give
-you Draco and KTX2 compression.
+you Draco compression.
 
 There are 2 versions of the tool:
 - CLI: run the tool from the terminal. Useful for automating LOD generation in scripts
@@ -100,6 +105,12 @@ import { LODModelLoader } from 'model-splitter/runtime-lib.esm';
 Check the `LODModelLoader` class for usage, or the example in the
 `example-project` folder.
 
+If KTX2 support is needed, the Basis Universal transcoder also needs to be
+included in your bundle's folder. This can be automated by copying the
+transcoder files from the `node_modules/model-splitter/lib-static` folder to the
+`deploy` folder in your build script, or in your prepare script by copying to
+the `static` folder instead of the `deploy` folder.
+
 ## Example
 
 There is a WLE example project in the `example-project` folder. It uses a given
@@ -125,7 +136,9 @@ This project uses the following open-source projects:
 - [@typescript-eslint/parser](https://github.com/typescript-eslint/typescript-eslint) licensed under the BSD 2-Clause license
 - [@wonderlandengine/api](https://www.npmjs.com/package/@wonderlandengine/api) licensed under the MIT license
 - [@wonderlandengine/components](https://www.npmjs.com/package/@wonderlandengine/components) licensed under the MIT license
+- [async-mutex](https://github.com/DirtyHairy/async-mutex#readme) licensed under the MIT license
 - [babylonjs-gltf2interface](https://www.babylonjs.com/) licensed under the Apache 2.0 license
+- The [Basis Universal](https://github.com/BinomialLLC/basis_universal/tree/master/webgl) WebAssembly transcoder and loader (modified) licensed under the Apache 2.0 license
 - [cesium](http://cesium.com/cesiumjs/) licensed under the Apache 2.0 license
 - [colors](https://github.com/Marak/colors.js) licensed under the MIT license
 - [concurrently](https://github.com/open-cli-tools/concurrently#readme) licensed under the MIT license
@@ -138,9 +151,11 @@ This project uses the following open-source projects:
 - [gltf-pipeline](https://github.com/CesiumGS/gltf-pipeline) licensed under the Apache 2.0 license
 - [glTF-Transform](https://gltf-transform.donmccurdy.com/) licensed under the MIT license
 - [gltfpack](https://github.com/zeux/meshoptimizer) licensed under the MIT license
+- [mikktspace](https://github.com/donmccurdy/mikktspace-wasm#readme) licensed under the MIT license
 - [node-notifier](https://github.com/mikaelbr/node-notifier#readme) licensed under the MIT license
 - [nw-builder](https://github.com/nwutils/nw-builder) licensed under the MIT license
 - [pkg](https://github.com/vercel/pkg#readme) licensed under the MIT license
 - [sharp](https://github.com/lovell/sharp) licensed under the Apache 2.0 license
 - [shx](https://github.com/shelljs/shx#readme) licensed under the MIT license
+- [tar](https://github.com/npm/node-tar#readme) licensed under the ISC license
 - [typescript](https://github.com/Microsoft/TypeScript) licensed under the Apache 2.0 license
