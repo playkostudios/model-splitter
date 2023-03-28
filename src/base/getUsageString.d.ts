@@ -1,0 +1,1 @@
+export function getUsageString(execName: string, defaultGltfpackPath: string, decorateExec?: (str: string) => string | null, decorateArg?: (str: string) => string | null): string;

@@ -52,6 +52,8 @@ package can be used as a regular node package with
 
 ## CLI
 
+<!-- usage-beg -->
+
 Usage:
 ```
 model-splitter <input file> <output folder> [--embed-textures] [--texture-size <percentage or target side length>] <lod 1 simplification ratio>[:<texture percentage or target side length>] <lod 2 simplification ratio>[:<texture percentage or target side length>] ...
@@ -74,14 +76,22 @@ model-splitter model.glb output 1 0.75:50% 0.5:25% 0.25:12.5%:optimize-scene-hie
 Options:
 - `<input file>`: The model file to split into LODs
 - `<output folder>`: The folder to put the split model into
-- `<lod simplification ratio>[:<texture percentage or target side length>][:optimize-scene-hierarchy][:keep-scene-hierarchy][:merge-materials][:no-material-merging]`: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture, scene hierarchy, and material options are equivalent to (or counteract), respectively, "--texture-size", "--keep-scene-hierarchy" and "no-material-merging" but only apply to this LOD
+- `<lod simplification ratio>[:<texture percentage or target side length>][:optimize-scene-hierarchy][:keep-scene-hierarchy][:merge-materials][:no-material-merging][:aggressive][:not-aggressive][:uastc][:etc1s][:no-basisu]`: Adds an LOD to be generated. The simplification ratio determines how much to simplify the model; 1 is no simplification, 0.5 is 50% simplification. The texture, scene hierarchy, and material options are equivalent to (or counteract), respectively, "--texture-size", "--keep-scene-hierarchy", "--no-material-merging", "--aggressive" and "--basisu" but only apply to this LOD
 - `--force`: Replace existing files. This flag is not set by default, meaning that if a file needs to be replaced the tool will throw an error
 - `--embed-textures`: Force each LOD model to have embedded textures instead of external textures
 - `--keep-scene-hierarchy`: Don't optimize the scene hierarchy; keeps the same hierarchy instead of merging nodes, at the expense of higher draw calls. Can be overridden per LOD
 - `--no-material-merging`: Don't merge materials and keep material names. Can be overridden per LOD
+- `--aggressive`: Simplify mesh disregarding quality. Can be overridden per LOD
 - `--texture-size <percentage or target side length>`: The texture size to use for each generated LOD if it's not specified in the LOD arguments
+- `--basisu <disabled, uastc, etc1s>`: Should textures be compressed with basisu? Can be overridden per LOD. Disabled by default
+- `--gltfpack-path <gltfpack bin path>`: Path to gltfpack binary. If none is specified, then the binary is assumed to be accessible via the PATH variable ("gltfpack" on Linux, "gltfpack.exe" on Windows)
+- `--log-level <log level>`: The log level to use. Can be: 'none', 'error', 'warning', 'log' or 'debug'
 - `--version`: Print version and exit
 - `--help`: Print help and exit
+
+If an option that can only be specified once is supplied multiple times, then only the last value is used.
+
+<!-- usage-end -->
 
 Note that, since this is a node.js CLI tool, you may need to use
 `npx model-splitter (...)`, instead of just `model-splitter (...)`. If running
