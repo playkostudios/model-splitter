@@ -5,9 +5,6 @@ node_modules/
 /example-project/cache/
 /example-project/static/*
 /example-project/imgui.ini
-!/example-project/static/basis_loader.js
-!/example-project/static/basis_transcoder.js
-!/example-project/static/basis_transcoder.wasm
 /*.glb
 /*.gltf
 *.sublime-project
@@ -15,6 +12,8 @@ node_modules/
 package-lock.json
 pnpm-lock.yaml
 /lib/
+/lib-static/basis-transcoder-worker.js
+/lib-static/basis-transcoder-worker.js.map
 /pkgs/
 .editor/
 /nwjs-out/*

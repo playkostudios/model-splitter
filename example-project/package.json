@@ -5,12 +5,16 @@
   "main": "js/index.ts",
   "type": "module",
   "module": "js/index.ts",
+  "scripts": {
+    "build": "shx cp ../lib-static/* static && esbuild --minify --bundle --sourcemap --define:WL_EDITOR=false --minify --format=esm js/index.ts --outfile=deploy/model-splitter-example-bundle.js"
+  },
   "keywords": [
     "wonderland-engine"
   ],
-  "dependencies": {
+  "devDependencies": {
     "@wonderlandengine/api": "0.9.8",
-    "@wonderlandengine/components": "^1.0.0-rc.1",
-    "gl-matrix": "^3.4.3"
+    "@wonderlandengine/components": "^1.0.0-rc.2",
+    "gl-matrix": "^3.4.3",
+    "shx": "^0.3.4"
   }
 }

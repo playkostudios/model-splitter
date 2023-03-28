@@ -530,7 +530,7 @@
             "libraryPaths": [
                 "/js/lib/"
             ],
-            "bundlingType": "esbuild",
+            "bundlingType": "npm",
             "entryPoint": "js/index.ts",
             "esbuildFlags": "--minify --format=esm"
         },

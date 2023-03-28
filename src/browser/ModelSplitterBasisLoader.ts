@@ -1,12 +1,15 @@
 import { Mutex } from 'async-mutex';
 
+import type { SupportedFormats } from './SupportedFormats';
+
 /**
- * Modified Basis Universal loader.
+ * Modified Basis Universal loader. Modified to:
  * - converted to Typescript
- * - removed worker code (original script is used)
+ * - removed worker code (moved to separate script)
  * - simplified code for use with Wonderland Engine
  * - modularized
  * - added cdnRoot
+ * - disallow separate alpha texture
  *
  * https://github.com/BinomialLLC/basis_universal/tree/master/webgl/transcoder/build/basis_loader.js
  */
@@ -21,15 +24,6 @@ interface WebGLFormat {
     uncompressed: boolean,
     format: number,
     type: number
-}
-
-interface SupportedFormats {
-    s3tc: boolean,
-    etc1: boolean,
-    etc2: boolean,
-    pvrtc: boolean,
-    astc: boolean,
-    bptc: boolean
 }
 
 const TRI_DATA = new Float32Array([ 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1 ]);
@@ -159,7 +153,7 @@ export class ModelSplitterBasisLoader {
     private supportedFormats: SupportedFormats;
     private mutexLock = new Mutex();
 
-    constructor(scriptPath: string, allowAlpha = true) {
+    constructor(scriptPath = 'basis-transcoder-worker.js', allowAlpha = true) {
         // create webgl2 canvas
         const canvas = document.createElement('canvas');
         const gl = canvas.getContext('webgl2', {

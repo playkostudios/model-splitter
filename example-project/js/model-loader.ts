@@ -1,9 +1,21 @@
 import { Component, Type } from '@wonderlandengine/api';
 import { LODModelLoader, ModelSplitterBasisLoader } from '../../lib/runtime-lib.esm';
 
+import type { Material } from '@wonderlandengine/api';
+
 export class ModelLoader extends Component {
-    static TypeName = 'model-loader';
-    static Properties = {
+    modelLoader: LODModelLoader;
+    cdnRoot!: string;
+    metadataURLFilename!: string;
+    lod!: number;
+    avoidPBR!: boolean;
+    pbrTemplateMaterial!: Material | null;
+    phongTemplateMaterial!: Material | null;
+    pbrOpaqueTemplateMaterial!: Material | null;
+    phongOpaqueTemplateMaterial!: Material | null;
+
+    static override TypeName = 'model-loader';
+    static override Properties = {
         cdnRoot: {type: Type.String},
         metadataURLFilename: {type: Type.String},
         lod: {type: Type.Int, default: 0},
@@ -14,12 +26,12 @@ export class ModelLoader extends Component {
         phongOpaqueTemplateMaterial: {type: Type.Material}
     }
 
-    init() {
-        const basisLoader = new ModelSplitterBasisLoader('basis_loader.js');
+    override init() {
+        const basisLoader = new ModelSplitterBasisLoader('basis-transcoder-worker.js');
         this.modelLoader = new LODModelLoader(this.engine, this.cdnRoot, basisLoader);
     }
 
-    start() {
+    override start() {
         this.modelLoader.loadFromURL(this.metadataURLFilename, this.lod, this.avoidPBR, this.object, this.phongOpaqueTemplateMaterial, this.phongTemplateMaterial, this.pbrOpaqueTemplateMaterial, this.pbrTemplateMaterial);
     }
 }
