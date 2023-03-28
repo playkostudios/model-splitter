@@ -234,21 +234,15 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         }
     }
 
-    // clone packed GLTFs when necessary
-    logger.debug('Cloning GLTFs...');
-    const gltfs = new Array<IGLTF>(lodCount);
-    const gltfpackVisited = new Set<number>();
+    // determine how many GLTFs can be cloned
+    logger.debug('Counting duplicate input GLTFs...');
+    const gltfDupes = new Array<number>(gltfpackOutputs.length);
+    gltfDupes.fill(0);
 
     for (let i = 0; i < lodCount; i++) {
         const lod = lodsParsed[i];
         const gacIdx = lod[0];
-
-        if (gltfpackVisited.has(gacIdx)) {
-            gltfs[i] = deepClone(gltfpackOutputs[gacIdx]);
-        } else {
-            gltfpackVisited.add(gacIdx);
-            gltfs[i] = gltfpackOutputs[gacIdx];
-        }
+        gltfDupes[gacIdx]++;
     }
 
     // generate each lod
@@ -262,7 +256,18 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         logger.debug(`Starting to generate LOD${l}...`);
         const outName = `${modelName}.LOD${l}.glb`;
         const outPath = resolvePath(outputFolder, outName);
-        await splitSingleLOD(outName, outPath, metadata, gltfpackArgCombos, gltfs[l], lodsParsed[l], originalImages, textures, parsedBuffers, expectedImageCount, force, logger);
+        const lod = lodsParsed[l];
+        const gacIdx = lod[0];
+
+        let gltf = gltfpackOutputs[gacIdx];
+        if (--gltfDupes[gacIdx] > 0) {
+            logger.debug('Cloning input GLTF...');
+            gltf = deepClone(gltf);
+        } else {
+            logger.debug('No other LOD depends on this input GLTF. Modifying in-place');
+        }
+
+        await splitSingleLOD(outName, outPath, metadata, gltfpackArgCombos, gltf, lod, originalImages, textures, parsedBuffers, expectedImageCount, force, logger);
     }
 
     // write non-embedded textures to final destination
