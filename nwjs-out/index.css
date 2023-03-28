@@ -55,6 +55,8 @@ fieldset, #text-output {
     box-sizing: border-box;
     width: 100%;
     overflow-x: auto;
+    height: 200px;
+    overflow-y: scroll;
 }
 
 #text-output, #text-output span, #text-output p {
@@ -116,4 +118,13 @@ p.msg-error {
 #lod-list > input[type="text"] {
     width: 100%;
     box-sizing: border-box;
+}
+
+#text-output * {
+    overflow-anchor: none;
+}
+
+#scroll-pin {
+    overflow-anchor: auto;
+    height: 1px;
 }

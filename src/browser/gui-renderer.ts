@@ -197,7 +197,7 @@ function reorderLODRow(lodList: HTMLDivElement, lodListHelp: HTMLParagraphElemen
     updateLODRows(lodList, lodListHelp);
 }
 
-function log(textOutput: HTMLDivElement, logLevel: Verbosity, mType: ObjectLoggerMessageType, timestamp: number | null, ...messages: Array<unknown>) {
+function log(textOutput: HTMLDivElement, scrollPin: HTMLDivElement, logLevel: Verbosity, mType: ObjectLoggerMessageType, timestamp: number | null, ...messages: Array<unknown>) {
     let timestampStr: string;
     if (timestamp === null) {
         timestampStr = new Date().toISOString();
@@ -219,11 +219,11 @@ function log(textOutput: HTMLDivElement, logLevel: Verbosity, mType: ObjectLogge
         msgContainer.classList.add('hidden');
     }
 
-    textOutput.appendChild(msgContainer);
+    textOutput.insertBefore(msgContainer, scrollPin);
 }
 
-function logObj(textOutput: HTMLDivElement, logLevel: Verbosity, message: ObjectLoggerMessage) {
-    log(textOutput, logLevel, message.type, message.time, message.data);
+function logObj(textOutput: HTMLDivElement, scrollPin: HTMLDivElement, logLevel: Verbosity, message: ObjectLoggerMessage) {
+    log(textOutput, scrollPin, logLevel, message.type, message.time, message.data);
 }
 
 async function showModal(question: string, isQuestion: boolean): Promise<boolean> {
@@ -308,6 +308,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
     const clearTextOutputButton = getElement<HTMLButtonElement>('clear-text-output-button');
     const toggleTextOutputButton = getElement<HTMLButtonElement>('toggle-text-output-button');
     const textOutput = getElement<HTMLDivElement>('text-output');
+    const scrollPin = getElement<HTMLDivElement>('scroll-pin');
 
     const splitButton = getElement<HTMLButtonElement>('split-button');
 
@@ -317,6 +318,10 @@ async function startRenderer(main: HTMLElement): Promise<void> {
         logLevel = parseLogLevel(logLevelSelect);
 
         for (const message of Array.from(textOutput.children)) {
+            if (message.id === 'scroll-pin') {
+                continue;
+            }
+
             let msgTypeClass = Verbosity.DEBUG;
             for (const msgClass of Array.from(message.classList)) {
                 if (msgClass.startsWith('msg-')) {
@@ -346,29 +351,29 @@ async function startRenderer(main: HTMLElement): Promise<void> {
 
     setTimeout(() => {
         if (!workerInitDone) {
-            log(textOutput, logLevel, 'warn', null, "10 seconds have passed and the worker hasn't initialized yet. Worker may have silently failed to initialize. Check console for details");
+            log(textOutput, scrollPin, logLevel, 'warn', null, "10 seconds have passed and the worker hasn't initialized yet. Worker may have silently failed to initialize. Check console for details");
             toggleTextOutput(toggleTextOutputButton, textOutput, true);
         }
     }, 10000);
 
     const worker = getWorker((message: ObjectLoggerMessage) => {
-        logObj(textOutput, logLevel, message);
+        logObj(textOutput, scrollPin, logLevel, message);
     }, () => {
         if (!workerInitDone) {
             workerInitDone = true;
             splitButton.disabled = false;
-            log(textOutput, logLevel, 'info', null, 'Worker initialized');
+            log(textOutput, scrollPin, logLevel, 'info', null, 'Worker initialized');
         }
     }, (err: string) => {
         workerInitDone = true;
         splitButton.disabled = true;
-        logErr(logObj.bind(null, textOutput, logLevel), err);
+        logErr(logObj.bind(null, textOutput, scrollPin, logLevel), err);
         toggleTextOutput(toggleTextOutputButton, textOutput, true);
     });
 
     splitButton.addEventListener('click', async () => {
         splitButton.disabled = true;
-        log(textOutput, logLevel, 'info', null, `Splitting model...`);
+        log(textOutput, scrollPin, logLevel, 'info', null, `Splitting model...`);
 
         let error: unknown;
         let hadError = false;
@@ -483,9 +488,9 @@ async function startRenderer(main: HTMLElement): Promise<void> {
         let message: string;
         if (hadError) {
             if (typeof error === 'object' && error !== null && 'message' in error) {
-                log(textOutput, logLevel, 'error', null, error.message);
+                log(textOutput, scrollPin, logLevel, 'error', null, error.message);
             } else {
-                log(textOutput, logLevel, 'error', null, `${error}`);
+                log(textOutput, scrollPin, logLevel, 'error', null, `${error}`);
             }
 
             message = 'Failed to split model';
@@ -493,7 +498,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
             message = 'Done splitting model';
         }
 
-        log(textOutput, logLevel, 'info', null, message);
+        log(textOutput, scrollPin, logLevel, 'info', null, message);
 
         if (!document.hasFocus()) {
             notify({ title: 'model-splitter', message });
@@ -508,7 +513,9 @@ async function startRenderer(main: HTMLElement): Promise<void> {
         'click',
         () => {
             for (const child of Array.from(textOutput.childNodes)) {
-                textOutput.removeChild(child);
+                if ((child as HTMLElement).id !== 'scroll-pin') {
+                    textOutput.removeChild(child);
+                }
             }
         }
     )
@@ -629,7 +636,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
     // remove loading message and show UI
     loadPara.parentElement?.removeChild(loadPara);
     main.style.display = '';
-    log(textOutput, logLevel, 'info', null, 'Initialised model-splitter GUI');
+    log(textOutput, scrollPin, logLevel, 'info', null, 'Initialised model-splitter GUI');
 }
 
 async function setupTool() {
