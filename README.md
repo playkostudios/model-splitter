@@ -21,6 +21,35 @@ There are 2 versions of the tool:
 
 The tool can also be included as a library.
 
+## Installing the tool
+
+All installation methods require
+[gltfpack](https://github.com/zeux/meshoptimizer#installing-gltfpack) to be
+installed. Since there is no standard installation path, the tool assumes that
+gltfpack is globally accessible as the `gltfpack` binary (or `gltfpack.exe` on
+Windows). A path to the binary can also be supplied to the library, CLI and GUI.
+
+### Build from source
+
+1. Make sure [Node.js](https://nodejs.org/en) is installed
+2. Make sure [pnpm](https://pnpm.io/) is installed. If you are using corepack, you will get an error when attempting to use any other package manager
+3. Run `pnpm install`
+4. Run `pnpm run build-all`
+
+If you wish to create a package with this tool, run `pnpm run pkg-all`, or
+`pnpm run build-pkg-all` if you want to build and then package.
+
+### Pre-compiled binaries
+
+If you are on Linux or Windows, you can download the CLI or GUI binary from the
+[releases tab](https://github.com/playkostudios/model-splitter/releases/). For
+example, if you want to use the GUI version on Windows, extract the zip
+(`model-splitter-gui-win.zip`) and run `model-splitter-gui.exe`.
+
+If you only want to use this as a library, the `model-splitter-X.X.X.tgz`
+package can be used as a regular node package with
+`npm install --save-dev model-splitter-X.X.X.tgz`.
+
 ## CLI
 
 Usage:
@@ -118,13 +147,6 @@ LOD level and a metadata file, however, the model files aren't generated yet.
 Use `model-splitter` with one of your model files before running the project,
 with the output to the project's `static` folder. LOD level and metadata file
 URL can be specified in the `model-loader` component in the editor.
-
-## Installing on Windows
-
-Download a windows binary from the
-[releases tab](https://github.com/playkostudios/model-splitter/releases/). If
-using the GUI version, extract the zip (`model-splitter-gui-win.zip`) and run
-`model-splitter-gui.exe`.
 
 ## License
 
