@@ -7,13 +7,17 @@ import { simplifyModel } from './simplifyModel';
 import { bufferHash, getProcessedTexture, parseBuffer } from './caching';
 import { deepClone } from './deepClone';
 import { ConsoleLogger } from './ConsoleLogger';
+import { KHRONOS_EXTENSIONS } from '@gltf-transform/extensions';
+import draco3d from 'draco3dgltf';
+import { PrefixedLogger } from './PrefixedLogger';
+import { wlefyModel } from './wlefyModel';
+import { tmpdir } from 'node:os';
+import { PatchedNodeIO } from './PatchedNodeIO';
 
 import type { IGLTF, IImage } from 'babylonjs-gltf2interface';
 import type { Metadata } from './output-types';
 import type { GltfpackArgCombo, OriginalImagesList, ParsedLODConfigList, ProcessedTextureList } from './internal-types';
 import type { LODConfigList, PackedResizeOption, SplitModelOptions } from './external-types';
-import { wlefyModel } from './wlefyModel';
-import { tmpdir } from 'node:os';
 
 export * from './ModelSplitterError';
 export * from './external-types';
@@ -125,9 +129,17 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         }
     }
 
+    // make node IO for gltf-transform
+    const io = new PatchedNodeIO();
+    io.setLogger(new PrefixedLogger('[glTF-Transform] ', logger));
+    io.registerExtensions(KHRONOS_EXTENSIONS);
+    io.registerDependencies({
+        'draco3d.decoder': await draco3d.createDecoderModule(),
+    });
+
     // convert model to a format usable by wonderland engine
-    logger.debug('Converting to format usable by Wonderland Engine with glTF-Transform...');
-    const wlefiedModel = await wlefyModel(inputModelPath, logger);
+    logger.debug('Converting to format usable by Wonderland Engine...');
+    const wlefiedModel = await wlefyModel(io, inputModelPath);
 
     // run gltfpack
     logger.debug('Compressing models with gltfpack...');
