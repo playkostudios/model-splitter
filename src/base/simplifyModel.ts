@@ -1,5 +1,3 @@
-const { glbToGltf } = require('gltf-pipeline');
-
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { InvalidInputError } from './ModelSplitterError';
 import { resolve as resolvePath } from 'node:path';
@@ -8,7 +6,6 @@ import { getDefaultGltfpackPath } from './getDefaultGltfpackPath';
 
 import type { ILogger } from '@gltf-transform/core';
 import type { GltfpackArgCombo } from './internal-types';
-import type { IGLTF } from 'babylonjs-gltf2interface';
 import type { BasisUniversalMode, PackedResizeOption } from './external-types';
 
 let run = 0;
@@ -152,21 +149,6 @@ async function gltfpackPass(tempFolderPath: string, gltfpackPath: string | null,
     return output;
 }
 
-export function simplifyModel(tempFolderPath: string, gltfpackPath: string | null, modelBuffer: Uint8Array, gltfpackArgCombos: Array<GltfpackArgCombo>, gltfpackOutputs: Array<IGLTF>, gacIdx: number, logger: ILogger) {
-    return new Promise<void>((resolve, reject) => {
-        gltfpackPass(resolvePath(tempFolderPath, `run-${run++}`), gltfpackPath, modelBuffer, ...gltfpackArgCombos[gacIdx], logger).then(buf => {
-            return glbToGltf(buf);
-        }).then(results => {
-            if (results.separateResources && Object.getOwnPropertyNames(results.separateResources).length > 0) {
-                throw new Error('Unexpected external resources in GLTF');
-            }
-
-            if (!results.gltf) {
-                throw new Error('Unexpected missing GLTF in gltf-pipeline output');
-            }
-
-            gltfpackOutputs[gacIdx] = results.gltf;
-            resolve();
-        }).catch(reject);
-    });
+export async function simplifyModel(tempFolderPath: string, gltfpackPath: string | null, modelBuffer: Uint8Array, gltfpackArgCombos: Array<GltfpackArgCombo>, gacIdx: number, logger: ILogger): Promise<Uint8Array> {
+    return await gltfpackPass(resolvePath(tempFolderPath, `run-${run++}`), gltfpackPath, modelBuffer, ...gltfpackArgCombos[gacIdx], logger);
 }

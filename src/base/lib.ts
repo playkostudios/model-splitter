@@ -4,8 +4,6 @@ import { splitSingleLOD } from './splitSingleLOD';
 import { InvalidInputError } from './ModelSplitterError';
 import { assertFreeFile } from './assertFreeFile';
 import { simplifyModel } from './simplifyModel';
-import { bufferHash, getProcessedTexture, parseBuffer } from './caching';
-import { deepClone } from './deepClone';
 import { ConsoleLogger } from './ConsoleLogger';
 import { KHRONOS_EXTENSIONS } from '@gltf-transform/extensions';
 import draco3d from 'draco3dgltf';
@@ -14,10 +12,10 @@ import { wlefyModel } from './wlefyModel';
 import { tmpdir } from 'node:os';
 import { PatchedNodeIO } from './PatchedNodeIO';
 
-import type { IGLTF, IImage } from 'babylonjs-gltf2interface';
 import type { Metadata } from './output-types';
-import type { GltfpackArgCombo, OriginalImagesList, ParsedLODConfigList, ProcessedTextureList } from './internal-types';
+import type { GltfpackArgCombo, ParsedLODConfigList } from './internal-types';
 import type { LODConfigList, PackedResizeOption, SplitModelOptions } from './external-types';
+import { PlaykoExternalWLEMaterial } from './PlaykoExternalWLEMaterial';
 
 export * from './ModelSplitterError';
 export * from './external-types';
@@ -132,7 +130,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     // make node IO for gltf-transform
     const io = new PatchedNodeIO();
     io.setLogger(new PrefixedLogger('[glTF-Transform] ', logger));
-    io.registerExtensions(KHRONOS_EXTENSIONS);
+    io.registerExtensions([ ...KHRONOS_EXTENSIONS, PlaykoExternalWLEMaterial ]);
     io.registerDependencies({
         'draco3d.decoder': await draco3d.createDecoderModule(),
     });
@@ -141,162 +139,31 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     logger.debug('Converting to format usable by Wonderland Engine...');
     const wlefiedModel = await wlefyModel(io, inputModelPath);
 
-    // run gltfpack
-    logger.debug('Compressing models with gltfpack...');
-    const gacCount = gltfpackArgCombos.length;
-    const gltfpackOutputs = new Array<IGLTF>(gacCount);
-    const gltfpackPromises = new Array<Promise<void>>();
-
-    for (let i = 0; i < gacCount; i++) {
-        const gacIdx = i;
-        gltfpackPromises.push(simplifyModel(tempFolderPath, gltfpackPath, wlefiedModel, gltfpackArgCombos, gltfpackOutputs, gacIdx, logger));
-    }
-
-    await Promise.all(gltfpackPromises);
-
-    // verify gltfpack outputs the same amount of images, that the images use
-    // bufferViews, and parse the buffers where the images are
-    logger.debug('Verifying gltfpack image counts...');
-    const gltfFirst = gltfpackOutputs[0];
-    const expectedImageCount = gltfFirst?.images?.length ?? 0;
-    const parsedBuffers = new Array<Buffer>();
-    for (let i = 0; i < gacCount; i++) {
-        const thisOutput = gltfpackOutputs[i];
-        const thisImages = thisOutput?.images;
-        const thisImageCount = thisImages?.length ?? 0;
-        if (thisImageCount !== expectedImageCount) {
-            throw new Error(`Unexpected image count in gltfpack output; expected ${expectedImageCount}, got ${thisImageCount}`);
-        }
-
-        if (thisImageCount > 0) {
-            for (const image of thisImages as Array<IImage>) {
-                const bufferViewIdx = image.bufferView;
-                if (bufferViewIdx === undefined) {
-                    throw new Error('Unexpected image without bufferView in gltfpack output');
-                }
-
-                const bufferViews = thisOutput.bufferViews;
-                if (bufferViews === undefined) {
-                    throw new Error('Unexpected missing bufferViews array in gltfpack output');
-                }
-
-                const bufferView = bufferViews[bufferViewIdx];
-                if (bufferView === undefined) {
-                    throw new Error('Unexpected missing bufferView in gltfpack output');
-                }
-
-                const buffers = thisOutput.buffers;
-                if (buffers === undefined) {
-                    throw new Error('Unexpected missing buffers array in gltfpack output');
-                }
-
-                parseBuffer(parsedBuffers, buffers[bufferView.buffer]);
-            }
-        }
-    }
-
-    // extract original images
-    const textures: ProcessedTextureList = [];
-    const originalImages: OriginalImagesList = [];
-    let gltfFirstNonBasisU = null;
-
-    for (let i = 0; i < gacCount; i++) {
-        if (gltfpackArgCombos[i][4] !== 'disabled') {
-            continue;
-        }
-
-        gltfFirstNonBasisU = gltfpackOutputs[i];
-    }
-
-    if (gltfFirstNonBasisU !== null) {
-        logger.debug('Reading original images...');
-        if (expectedImageCount > 0) {
-            const images = gltfFirstNonBasisU.images as Array<IImage>;
-            for (const image of images) {
-                if (image.bufferView === undefined || image.mimeType as string === 'image/ktx2') {
-                    originalImages.push(null);
-                    continue;
-                }
-
-                if (gltfFirstNonBasisU.bufferViews === undefined) {
-                    throw new Error('Unexpected missing bufferViews array');
-                }
-
-                const bufferView = gltfFirstNonBasisU.bufferViews[image.bufferView];
-                const bufferIdx = bufferView.buffer;
-                const bufferLen = bufferView.byteLength;
-                const bufferOffset = bufferView.byteOffset ?? 0;
-
-                if (gltfFirstNonBasisU.buffers === undefined) {
-                    throw new Error('Unexpected missing buffers array');
-                }
-
-                const buffer = parseBuffer(parsedBuffers, gltfFirstNonBasisU.buffers[bufferIdx]);
-                let imageBuffer = buffer.subarray(bufferOffset, bufferOffset + bufferLen);
-
-                const hash = bufferHash(imageBuffer);
-                imageBuffer = getProcessedTexture(textures, hash, hash, imageBuffer, 'keep');
-
-                originalImages.push([imageBuffer, hash]);
-            }
-        }
-    } else {
-        for (let i = 0; i < expectedImageCount; i++) {
-            originalImages.push(null);
-        }
-    }
-
-    // determine how many GLTFs can be cloned
-    logger.debug('Counting duplicate input GLTFs...');
-    const gltfDupes = new Array<number>(gltfpackOutputs.length);
-    gltfDupes.fill(0);
-
-    for (let i = 0; i < lodCount; i++) {
-        const lod = lodsParsed[i];
-        const gacIdx = lod[0];
-        gltfDupes[gacIdx]++;
-    }
-
-    // generate each lod
+    // run gltfpack and generate each lod
     // WARNING this assumes that every output packed gltf has the same images at
     //         the same indices
+    const gacCount = gltfpackArgCombos.length;
     const metadata: Metadata = {
         lods: []
     };
 
-    for (let l = 0; l < lodCount; l++) {
-        logger.debug(`Starting to generate LOD${l}...`);
-        const outName = `${modelName}.LOD${l}.glb`;
-        const outPath = resolvePath(outputFolder, outName);
-        const lod = lodsParsed[l];
-        const gacIdx = lod[0];
+    for (let i = 0; i < gacCount; i++) {
+        // run gltfpack
+        const gacIdx = i;
+        logger.debug(`Running gltfpack on argument combo ${i}...`);
+        const glbBuf = await simplifyModel(tempFolderPath, gltfpackPath, wlefiedModel, gltfpackArgCombos, gacIdx, logger);
 
-        let gltf = gltfpackOutputs[gacIdx];
-        if (--gltfDupes[gacIdx] > 0) {
-            logger.debug('Cloning input GLTF...');
-            gltf = deepClone(gltf);
-        } else {
-            logger.debug('No other LOD depends on this input GLTF. Modifying in-place');
+        // get lods that depend on this gltfpack argument combo (gac)
+        for (let l = 0; l < lodCount; l++) {
+            const lod = lodsParsed[l];
+            if (gacIdx !== lod[0]) {
+                continue;
+            }
+
+            logger.debug(`Starting to generate LOD${l}...`);
+            const outName = `${modelName}.LOD${l}.glb`;
+            await splitSingleLOD(logger, io, outName, outputFolder, metadata, gltfpackArgCombos, glbBuf, lod, force);
         }
-
-        await splitSingleLOD(outName, outPath, metadata, gltfpackArgCombos, gltf, lod, originalImages, textures, parsedBuffers, expectedImageCount, force, logger);
-    }
-
-    // write non-embedded textures to final destination
-    for (const [_inputs, hash, content, save] of textures) {
-        if (!save) {
-            continue;
-        }
-
-        const outPath = resolvePath(outputFolder, hash);
-        logger.debug(`Writing external texture ${outPath}...`);
-
-        if (!force) {
-            assertFreeFile(outPath);
-        }
-
-        writeFileSync(outPath, content);
-        logger.debug(`Done`);
     }
 
     // write metadata to final destination
