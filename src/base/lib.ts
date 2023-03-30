@@ -169,8 +169,6 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     const wlefiedModelPath = await wlefyModel(io, inputModelPath, tempFolderPath);
 
     // run gltfpack and generate each lod
-    // WARNING this assumes that every output packed gltf has the same images at
-    //         the same indices
     const metadata: Metadata = {
         lods: []
     };
