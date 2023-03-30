@@ -215,7 +215,7 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
 
     // override generator
     const asset = root.getAsset();
-    asset.generator = `model-splitter ${MODEL_SPLITTER_VERSION} (glTF-Transform ${GLTF_TRANSFORM_VERSION})`;
+    asset.generator = `model-splitter ${MODEL_SPLITTER_VERSION} (gltfpack, glTF-Transform ${GLTF_TRANSFORM_VERSION})`;
 }
 
 export async function splitSingleLOD(logger: ILogger, io: PatchedNodeIO, outName: string, outFolder: string, metadata: Metadata, gltfpackArgCombos: Array<GltfpackArgCombo>, glbBuf: Uint8Array, lodOptions: ParsedLODConfig, force: boolean, textureResizer: TextureResizer) {

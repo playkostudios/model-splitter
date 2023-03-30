@@ -166,7 +166,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
 
     // convert model to a format usable by wonderland engine
     logger.debug('Converting to format usable by Wonderland Engine...');
-    const wlefiedModel = await wlefyModel(io, inputModelPath);
+    const wlefiedModelPath = await wlefyModel(io, inputModelPath, tempFolderPath);
 
     // run gltfpack and generate each lod
     // WARNING this assumes that every output packed gltf has the same images at
@@ -182,7 +182,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
             // run gltfpack
             const gacIdx = i;
             logger.debug(`Running gltfpack on argument combo ${i}...`);
-            const glbBuf = await simplifyModel(tempFolderPath, gltfpackPath, wlefiedModel, gltfpackArgCombos, gacIdx, logger);
+            const glbBuf = await simplifyModel(tempFolderPath, gltfpackPath, wlefiedModelPath, gltfpackArgCombos, gacIdx, logger);
 
             // get lods that depend on this gltfpack argument combo (gac)
             for (let l = 0; l < lodCount; l++) {

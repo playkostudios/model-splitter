@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { InvalidInputError } from './ModelSplitterError';
 import { resolve as resolvePath } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -77,14 +77,9 @@ function gltfpackSpawn(workingDir: string, maybeGltfpackPath: string | null, glt
     });
 }
 
-async function gltfpackPass(tempFolderPath: string, gltfpackPath: string | null, modelBuffer: Uint8Array, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, aggressive: boolean, basisu: BasisUniversalMode, basisuResize: PackedResizeOption, logger: ILogger): Promise<Uint8Array> {
-    // make temp folder
-    logger.debug(`Making temporary sub-folder "${tempFolderPath}"...`);
-    mkdirSync(tempFolderPath, { recursive: true });
-
+async function gltfpackPass(tempFolderPath: string, outName: string, gltfpackPath: string | null, inputPath: string, lodRatio: number, optimizeSceneHierarchy: boolean, mergeMaterials: boolean, aggressive: boolean, basisu: BasisUniversalMode, basisuResize: PackedResizeOption, logger: ILogger): Promise<Uint8Array> {
     // build argument list
-    const inputPath = resolvePath(tempFolderPath, 'input-model.glb');
-    const outputPath = resolvePath(tempFolderPath, 'output-model.glb');
+    const outputPath = resolvePath(tempFolderPath, outName);
     const args = ['-i', inputPath, '-o', outputPath, '-noq'];
 
     if (!optimizeSceneHierarchy) {
@@ -133,22 +128,17 @@ async function gltfpackPass(tempFolderPath: string, gltfpackPath: string | null,
     }
 
     // simplify
-    logger.debug(`Writing to temporary input model file "${inputPath}"`);
-    writeFileSync(inputPath, modelBuffer);
-    logger.debug(`Done writing`);
-
     await gltfpackSpawn(tempFolderPath, gltfpackPath, args, logger);
 
     logger.debug(`Reading from temporary output model file "${outputPath}"`);
     const output = readFileSync(outputPath);
-    logger.debug(`Done reading`);
 
-    // delete temp folder
-    logger.debug(`Deleting temporary sub-folder "${tempFolderPath}"...`);
-    rmSync(tempFolderPath, { recursive: true, force: true });
+    // delete output model
+    logger.debug(`Deleting temporary output model file "${outputPath}"...`);
+    rmSync(outputPath);
     return output;
 }
 
-export async function simplifyModel(tempFolderPath: string, gltfpackPath: string | null, modelBuffer: Uint8Array, gltfpackArgCombos: Array<GltfpackArgCombo>, gacIdx: number, logger: ILogger): Promise<Uint8Array> {
-    return await gltfpackPass(resolvePath(tempFolderPath, `run-${run++}`), gltfpackPath, modelBuffer, ...gltfpackArgCombos[gacIdx], logger);
+export async function simplifyModel(tempFolderPath: string, gltfpackPath: string | null, modelPath: string, gltfpackArgCombos: Array<GltfpackArgCombo>, gacIdx: number, logger: ILogger): Promise<Uint8Array> {
+    return await gltfpackPass(tempFolderPath, `run-${run++}.glb`, gltfpackPath, modelPath, ...gltfpackArgCombos[gacIdx], logger);
 }

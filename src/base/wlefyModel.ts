@@ -1,9 +1,11 @@
 import { resample, prune, dequantize, metalRough, tangents, unweld } from '@gltf-transform/functions';
+import { writeFileSync } from 'fs';
 import { generateTangents } from 'mikktspace';
+import { resolve as resolvePath } from 'node:path';
 
 import type { PatchedNodeIO } from './PatchedNodeIO';
 
-export async function wlefyModel(io: PatchedNodeIO, inputModelPath: string): Promise<Uint8Array> {
+export async function wlefyModel(io: PatchedNodeIO, inputModelPath: string, tempFolderPath: string): Promise<string> {
     // read model
     const doc = await io.read(inputModelPath);
 
@@ -19,5 +21,7 @@ export async function wlefyModel(io: PatchedNodeIO, inputModelPath: string): Pro
     );
 
     // done
-    return await io.writeBinary(doc);
+    const outPath = resolvePath(tempFolderPath, 'intermediary-model.glb');
+    writeFileSync(outPath, await io.writeBinary(doc));
+    return outPath;
 }
