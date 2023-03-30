@@ -1,7 +1,7 @@
 import { resolve as resolvePath } from 'node:path';
 import { bufferHash } from './bufferHash';
-import sharp from 'sharp';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import gm from 'gm';
 
 import type { PackedResizeOption } from './external-types';
 import type { ILogger } from '@gltf-transform/core';
@@ -19,6 +19,30 @@ enum TextureCacheType {
      * - if external, move from temp to output folder and change cache type
      */
     Temp,
+}
+
+function gmToBuffer(img: gm.State): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        img.toBuffer((err: Error | null | undefined, buf: Buffer) => {
+            if (err === null || err === undefined) {
+                resolve(buf);
+            } else {
+                reject(err);
+            }
+        })
+    });
+}
+
+function gmSize(img: gm.State): Promise<gm.Dimensions> {
+    return new Promise((resolve, reject) => {
+        img.size((err: Error | null | undefined, dims: gm.Dimensions) => {
+            if (err === null || err === undefined) {
+                resolve(dims);
+            } else {
+                reject(err);
+            }
+        })
+    });
 }
 
 export class TextureResizer {
@@ -111,16 +135,16 @@ export class TextureResizer {
         this.keptExtTextures.add(hash);
     }
 
-    async resizeTexture(outFolder: string, resizeOpt: PackedResizeOption, inBuf: Uint8Array, inHash: string, embedded: boolean, logger: ILogger): Promise<[buffer: Uint8Array | null, hash: string]> {
+    async resizeTexture(outFolder: string, resizeOpt: PackedResizeOption, inArr: Uint8Array, inHash: string, embedded: boolean, logger: ILogger): Promise<[buffer: Uint8Array | null, hash: string]> {
         // normalize to 'keep', or percentage-based resize operations to absolute
         // dimensions
-        let inSharp: sharp.Sharp | undefined;
+        let inImg: gm.State | undefined;
         if (Array.isArray(resizeOpt) && resizeOpt[2] === '%') {
             if (resizeOpt[0] === 100 && resizeOpt[1] === 100) {
                 resizeOpt = 'keep';
             } else {
-                inSharp = sharp(inBuf);
-                const inMeta = await inSharp.metadata();
+                inImg = gm(Buffer.from(inArr.buffer, inArr.byteOffset, inArr.byteLength));
+                const inMeta = await gmSize(inImg);
                 if (inMeta.width === undefined || inMeta.height === undefined) {
                     throw new Error('Unexpected missing width/height in input image metadata; needed for percentage-based resizing');
                 }
@@ -142,12 +166,12 @@ export class TextureResizer {
 
             if (embedded) {
                 logger.debug(`Skipped writing kept image "${inHash}"; embedded`);
-                return [inBuf, inHash];
+                return [inArr, inHash];
             } else {
                 if (this.keptExtTextures.has(inHash)) {
                     logger.debug(`Skipped writing kept image "${inHash}"; already written before`);
                 } else {
-                    this.writeFile(inBuf, this.getDestFolder(outFolder, inHash, embedded), logger);
+                    this.writeFile(inArr, this.getDestFolder(outFolder, inHash, embedded), logger);
                     this.keptExtTextures.add(inHash);
                 }
 
@@ -176,14 +200,14 @@ export class TextureResizer {
             }
         }
 
-        // resize with sharp
+        // resize image
         logger.debug(`Resizing image "${inHash}" to ${w}x${h}`);
 
-        if (inSharp === undefined) {
-            inSharp = sharp(inBuf);
+        if (inImg === undefined) {
+            inImg = gm(Buffer.from(inArr.buffer, inArr.byteOffset, inArr.byteLength));
         }
 
-        const outBuf = await inSharp.resize(w, h).toBuffer();
+        const outBuf = await gmToBuffer(inImg.resize(w, h, '!'));
         const outHash = bufferHash(outBuf);
         const outPath = this.getDestFolder(outFolder, outHash, embedded);
         this.writeFile(outBuf, outPath, logger);

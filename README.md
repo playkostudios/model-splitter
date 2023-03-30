@@ -29,6 +29,9 @@ installed. Since there is no standard installation path, the tool assumes that
 gltfpack is globally accessible as the `gltfpack` binary (or `gltfpack.exe` on
 Windows). A path to the binary can also be supplied to the library, CLI and GUI.
 
+[GraphicsMagick](http://www.graphicsmagick.org/) must also be installed for
+texture resizing to work, except if resizing textures with Basis Universal.
+
 ### Build from source
 
 1. Make sure [Node.js](https://nodejs.org/en) is installed
@@ -178,11 +181,11 @@ This project uses the following open-source projects:
 - [eslint](https://github.com/eslint/eslint) licensed under the MIT license
 - [glTF-Transform](https://gltf-transform.donmccurdy.com/) licensed under the MIT license
 - [gltfpack](https://github.com/zeux/meshoptimizer) licensed under the MIT license
+- [gm](https://github.com/aheckmann/gm#readme) licensed under the MIT license
 - [mikktspace](https://github.com/donmccurdy/mikktspace-wasm#readme) licensed under the MIT license
 - [node-notifier](https://github.com/mikaelbr/node-notifier#readme) licensed under the MIT license
 - [nw-builder](https://github.com/nwutils/nw-builder) licensed under the MIT license
 - [pkg](https://github.com/vercel/pkg#readme) licensed under the MIT license
-- [sharp](https://github.com/lovell/sharp) licensed under the Apache 2.0 license
 - [shx](https://github.com/shelljs/shx#readme) licensed under the MIT license
 - [tar](https://github.com/npm/node-tar#readme) licensed under the ISC license
 - [typescript](https://github.com/Microsoft/TypeScript) licensed under the Apache 2.0 license

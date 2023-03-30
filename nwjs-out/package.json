@@ -17,11 +17,5 @@
     "double_tap_to_zoom_enabled": false,
     "plugin": false
   },
-  "chromium-args": "--enable-logging=stderr --enable-node-worker --mixed-context",
-  "dependencies": {
-    "sharp": "^0.31.3"
-  },
-  "scripts": {
-    "prepare": "npm rebuild --platform=linux --arch=x64 --libc=glibc sharp && npm rebuild --platform=win32 --arch=x64 sharp"
-  }
+  "chromium-args": "--enable-logging=stderr --enable-node-worker --mixed-context"
 }
