@@ -144,7 +144,7 @@ export class TextureResizer {
                 this.logger.debug(`Skipped writing kept image "${inHash}"; embedded`);
                 return [inBuf, inHash];
             } else {
-                if (!this.keptExtTextures.has(inHash)) {
+                if (this.keptExtTextures.has(inHash)) {
                     this.logger.debug(`Skipped writing kept image "${inHash}"; already written before`);
                 } else {
                     this.writeFile(inBuf, this.getDestFolder(outFolder, inHash, embedded));
