@@ -11,11 +11,12 @@ import { PrefixedLogger } from './PrefixedLogger';
 import { wlefyModel } from './wlefyModel';
 import { tmpdir } from 'node:os';
 import { PatchedNodeIO } from './PatchedNodeIO';
+import { PlaykoExternalWLEMaterial } from './PlaykoExternalWLEMaterial';
+import { TextureResizer } from './TextureResizer';
 
 import type { Metadata } from './output-types';
 import type { GltfpackArgCombo, ParsedLODConfigList } from './internal-types';
 import type { LODConfigList, PackedResizeOption, SplitModelOptions } from './external-types';
-import { PlaykoExternalWLEMaterial } from './PlaykoExternalWLEMaterial';
 
 export * from './ModelSplitterError';
 export * from './external-types';
@@ -45,6 +46,10 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     const gltfpackArgCombos = new Array<GltfpackArgCombo>();
     const lodsParsed: ParsedLODConfigList = [];
     const lodCount = lods.length;
+    let hasTempCacheDep = false;
+    let hasEmbedded = false;
+    let warnedEmbeddedBasisu = false;
+
     for (let i = 0; i < lodCount; i++) {
         const lod = lods[i];
 
@@ -89,9 +94,17 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         let embedTextures = lod.embedTextures ?? defaultEmbedTextures;
 
         if (basisUniversal !== 'disabled' && embedTextures) {
-            logger.warn("Basis Universal enabled for model, texture embedding force-disabled; Wonderland Engine doesn't support loading KTX2 textures, so they must be stored externally to be transcoded at runtime");
+            if (!warnedEmbeddedBasisu) {
+                warnedEmbeddedBasisu = true;
+                logger.warn("Basis Universal enabled for model, texture embedding force-disabled; Wonderland Engine doesn't support loading KTX2 textures, so they must be stored externally to be transcoded at runtime");
+            }
+
             embedTextures = false;
         }
+
+        // check if texture cache temp folder is needed
+        hasTempCacheDep ||= (resolvedResizeOpt !== 'keep' && basisUniversal === 'disabled');
+        hasEmbedded ||= embedTextures;
 
         // done
         lodsParsed.push([gacIdx, basisu ? 'keep' : resolvedResizeOpt, embedTextures]);
@@ -147,23 +160,30 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         lods: []
     };
 
-    for (let i = 0; i < gacCount; i++) {
-        // run gltfpack
-        const gacIdx = i;
-        logger.debug(`Running gltfpack on argument combo ${i}...`);
-        const glbBuf = await simplifyModel(tempFolderPath, gltfpackPath, wlefiedModel, gltfpackArgCombos, gacIdx, logger);
+    const textureResizer = new TextureResizer(tempFolderPath, logger, hasTempCacheDep && hasEmbedded);
 
-        // get lods that depend on this gltfpack argument combo (gac)
-        for (let l = 0; l < lodCount; l++) {
-            const lod = lodsParsed[l];
-            if (gacIdx !== lod[0]) {
-                continue;
+    try {
+        for (let i = 0; i < gacCount; i++) {
+            // run gltfpack
+            const gacIdx = i;
+            logger.debug(`Running gltfpack on argument combo ${i}...`);
+            const glbBuf = await simplifyModel(tempFolderPath, gltfpackPath, wlefiedModel, gltfpackArgCombos, gacIdx, logger);
+
+            // get lods that depend on this gltfpack argument combo (gac)
+            for (let l = 0; l < lodCount; l++) {
+                const lod = lodsParsed[l];
+                if (gacIdx !== lod[0]) {
+                    continue;
+                }
+
+                logger.debug(`Starting to generate LOD${l}...`);
+                const outName = `${modelName}.LOD${l}.glb`;
+                await splitSingleLOD(logger, io, outName, outputFolder, metadata, gltfpackArgCombos, glbBuf, lod, force, textureResizer);
             }
-
-            logger.debug(`Starting to generate LOD${l}...`);
-            const outName = `${modelName}.LOD${l}.glb`;
-            await splitSingleLOD(logger, io, outName, outputFolder, metadata, gltfpackArgCombos, glbBuf, lod, force);
         }
+    } finally {
+        logger.debug('Cleaning up texture resizer cache');
+        textureResizer.cleanup();
     }
 
     // write metadata to final destination

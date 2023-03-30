@@ -2,8 +2,7 @@ import { PropertyType, VERSION as GLTF_TRANSFORM_VERSION } from '@gltf-transform
 import { createTransform } from '@gltf-transform/functions';
 import { EXTENSION_NAME } from './extension-name';
 import { assertFreeFile } from './assertFreeFile';
-import { existsSync, statSync, writeFileSync } from 'node:fs';
-import { resizeTexture } from './resizeTexture';
+import { statSync, writeFileSync } from 'node:fs';
 import { bufferHash } from './bufferHash';
 import { resolve as resolvePath } from 'node:path';
 import { PlaykoExternalWLEMaterial } from './PlaykoExternalWLEMaterial';
@@ -15,18 +14,20 @@ import type { GltfpackArgCombo, ParsedLODConfig } from './internal-types';
 import type { Document, Texture, Material, ILogger } from '@gltf-transform/core';
 import type { PatchedNodeIO } from './PatchedNodeIO';
 import type { PackedResizeOption } from './external-types';
+import type { TextureResizer } from './TextureResizer';
 
 function getDummyMaterial(dummyMaterial: Material | null, gltf: Document): Material {
     return dummyMaterial ? dummyMaterial : gltf.createMaterial();
 }
 
-export async function splitSingleLODTransform(texResizeOpt: PackedResizeOption, embedTextures: boolean, outFolder: string, gltf: Document) {
+export async function splitSingleLODTransform(textureResizer: TextureResizer, texResizeOpt: PackedResizeOption, embedTextures: boolean, outFolder: string, gltf: Document) {
     const logger = gltf.getLogger();
     const root = gltf.getRoot();
     const graph = gltf.getGraph();
 
     // embed textures if needed, or move affected materials to metadata file
-    // and replace original materials with dummies
+    // and replace original materials with dummies. resized textures are stored
+    // in destination if external, or cached in a temporary folder
     // XXX map contains buffers, then buffer views and their replacements
     const textureHashes = new Map<Texture, string>();
     for (const texture of root.listTextures()) {
@@ -42,20 +43,26 @@ export async function splitSingleLODTransform(texResizeOpt: PackedResizeOption, 
         if (texture.getMimeType() === 'image/ktx2') {
             logger.debug('Found final basisu image');
             hash += '.ktx2';
+            textureResizer.storeExtKTX2(outFolder, img, hash);
             textureHashes.set(texture, hash);
         } else {
-            logger.debug('Resizing image');
-            const [resBuf, resHash] = await resizeTexture(texResizeOpt, img, hash);
-            texture.setImage(resBuf);
+            const [resBuf, resHash] = await textureResizer.resizeTexture(outFolder, texResizeOpt, img, hash, embedTextures);
+
+            if (resBuf !== null) {
+                // XXX only needed if embedded. if external, resBuf is null to
+                // skip this step
+                texture.setImage(resBuf);
+            }
+
             textureHashes.set(texture, resHash);
         }
     }
 
-    // handle external textures
+    // handle external textures (convert materials)
     if (!embedTextures && textureHashes.size > 0) {
         logger.debug('GLTF uses external textures');
 
-        // get dependent materials and save external textures
+        // get dependent materials
         const materials = new Set<Material>();
         for (const [texture, hash] of textureHashes) {
             for (const parent of texture.listParents()) {
@@ -68,19 +75,6 @@ export async function splitSingleLODTransform(texResizeOpt: PackedResizeOption, 
                 }
 
                 materials.add(parent as Material);
-            }
-
-            const outPath = resolvePath(outFolder, hash);
-
-            if (!existsSync(outPath)) {
-                const img = texture.getImage();
-                if (img === null) {
-                    throw new Error('Unexpected null image in finalized external texture');
-                }
-
-                writeFileSync(outPath, img);
-            } else {
-                logger.debug(`Skipped writing "${hash}"; already exists, assuming that the file integrity is OK and the content matches`);
             }
         }
 
@@ -224,12 +218,11 @@ export async function splitSingleLODTransform(texResizeOpt: PackedResizeOption, 
     asset.generator = `model-splitter ${MODEL_SPLITTER_VERSION} (glTF-Transform ${GLTF_TRANSFORM_VERSION})`;
 }
 
-export async function splitSingleLOD(logger: ILogger, io: PatchedNodeIO, outName: string, outFolder: string, metadata: Metadata, gltfpackArgCombos: Array<GltfpackArgCombo>, glbBuf: Uint8Array, lodOptions: ParsedLODConfig, force: boolean) {
+export async function splitSingleLOD(logger: ILogger, io: PatchedNodeIO, outName: string, outFolder: string, metadata: Metadata, gltfpackArgCombos: Array<GltfpackArgCombo>, glbBuf: Uint8Array, lodOptions: ParsedLODConfig, force: boolean, textureResizer: TextureResizer) {
     const outPath = resolvePath(outFolder, outName);
     const [gacIdx, texResizeOpt, embedTextures] = lodOptions;
 
     // read glb
-    console.log(logger)
     logger.debug('Parsing GLB buffer');
     const gltfMain = await io.readBinary(glbBuf);
 
@@ -237,7 +230,7 @@ export async function splitSingleLOD(logger: ILogger, io: PatchedNodeIO, outName
     logger.debug('Transforming GLB buffer');
     await gltfMain.transform(createTransform(
         'split-single-lod',
-        splitSingleLODTransform.bind(null, texResizeOpt, embedTextures, outFolder)
+        splitSingleLODTransform.bind(null, textureResizer, texResizeOpt, embedTextures, outFolder)
     ));
 
     // save as glb
