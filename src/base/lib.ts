@@ -33,6 +33,12 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     let force = options.force ?? false;
     const logger = options.logger ?? new ConsoleLogger();
 
+    // verify that there is work to do
+    const lodCount = lods.length;
+    if (lodCount === 0) {
+        throw InvalidInputError.fromDesc('Nothing to do');
+    }
+
     // verify that input model exists
     if (!existsSync(inputModelPath)) {
         throw InvalidInputError.fromDesc(`Input path "${inputModelPath}" does not exist`);
@@ -45,9 +51,9 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     // make final LOD configs with defaults applied, and verify validity
     const gltfpackArgCombos = new Array<GltfpackArgCombo>();
     const lodsParsed: ParsedLODConfigList = [];
-    const lodCount = lods.length;
     let hasTempCacheDep = false;
     let hasEmbedded = false;
+    let nonBasisuCount = 0;
     let warnedEmbeddedBasisu = false;
 
     for (let i = 0; i < lodCount; i++) {
@@ -80,8 +86,15 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         const gacCount = gltfpackArgCombos.length;
         for (; gacIdx < gacCount; gacIdx++) {
             const gac = gltfpackArgCombos[gacIdx];
-            if (gac[0] === lodRatio && gac[1] === optimizeSceneHierarchy && gac[2] === mergeMaterials && gac[3] === aggressive && gac[4] === basisUniversal && (basisUniversal === 'disabled' || gac[5] === resolvedResizeOpt)) {
-                break;
+            if (gac[0] === lodRatio && gac[1] === optimizeSceneHierarchy && gac[2] === mergeMaterials && gac[3] === aggressive && gac[4] === basisUniversal) {
+                const oResolvedResizeOpt = gac[5];
+                if (basisUniversal === 'disabled' || oResolvedResizeOpt === resolvedResizeOpt) {
+                    break;
+                } else if (Array.isArray(oResolvedResizeOpt) && Array.isArray(resolvedResizeOpt)) {
+                    if (resolvedResizeOpt[0] === oResolvedResizeOpt[0] && resolvedResizeOpt[1] === oResolvedResizeOpt[1] && (resolvedResizeOpt[2] ?? '!') === (oResolvedResizeOpt[2] ?? '!')) {
+                        break;
+                    }
+                }
             }
         }
 
@@ -106,13 +119,16 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         hasTempCacheDep ||= (resolvedResizeOpt !== 'keep' && basisUniversal === 'disabled');
         hasEmbedded ||= embedTextures;
 
+        if (basisUniversal === 'disabled') {
+            nonBasisuCount++;
+        }
+
         // done
         lodsParsed.push([gacIdx, basisu ? 'keep' : resolvedResizeOpt, embedTextures]);
     }
 
-    if (lodsParsed.length === 0) {
-        throw InvalidInputError.fromDesc('Nothing to do');
-    }
+    const gacCount = gltfpackArgCombos.length;
+    logger.debug(`There is work to do: ${lodCount} LODs using ${gacCount} gltfpack argument combinations`);
 
     // make output folder if needed, or verify that it's a folder
     if (existsSync(outputFolder)) {
@@ -155,12 +171,11 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     // run gltfpack and generate each lod
     // WARNING this assumes that every output packed gltf has the same images at
     //         the same indices
-    const gacCount = gltfpackArgCombos.length;
     const metadata: Metadata = {
         lods: []
     };
 
-    const textureResizer = new TextureResizer(tempFolderPath, logger, hasTempCacheDep && hasEmbedded);
+    const textureResizer = new TextureResizer(tempFolderPath, logger, hasTempCacheDep && hasEmbedded && nonBasisuCount > 1);
 
     try {
         for (let i = 0; i < gacCount; i++) {
