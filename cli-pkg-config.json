@@ -3,8 +3,9 @@
   "bin": "lib/cli.js",
   "pkg": {
     "assets": [
-      "lib/Build",
-      "lib/library.wasm"
+      "lib/draco_decoder_gltf.wasm",
+      "lib/library.wasm",
+      "lib/mikktspace_main_bg.wasm"
     ],
     "targets": [
       "node18-linux-x64",
