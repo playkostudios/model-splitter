@@ -28,9 +28,9 @@ export class TextureResizer {
     private _tempSubFolderPath: string | null = null;
     private warnedTempPartMove = false;
 
-    constructor(private readonly tempFolderPath: string, private readonly logger: ILogger, private allowTempFolderCaching: boolean) {
+    constructor(private readonly tempFolderPath: string, private allowTempFolderCaching: boolean, logger: ILogger) {
         if (this.allowTempFolderCaching) {
-            this.logger.warn('A temporary folder will be used for caching some resized textures, which may hurt performance');
+            logger.warn('A temporary folder will be used for caching some resized textures, which may hurt performance');
         }
     }
 
@@ -61,22 +61,22 @@ export class TextureResizer {
         }
     }
 
-    private writeFile(buf: Uint8Array, path: string | null) {
+    private writeFile(buf: Uint8Array, path: string | null, logger: ILogger) {
         if (path === null) {
             return;
         }
 
         if (!existsSync(path)) {
-            this.logger.debug(`Writing image to path "${path}"`);
+            logger.debug(`Writing image to path "${path}"`);
             writeFileSync(path, buf);
         } else if (!statSync(path).isFile()) {
             throw new Error(`Attempting to write file to "${path}", but folder already exists at destination`);
         } else {
-            this.logger.debug(`Skipped writing to file "${path}"; already exists, assuming that the file integrity is OK and the content matches`);
+            logger.debug(`Skipped writing to file "${path}"; already exists, assuming that the file integrity is OK and the content matches`);
         }
     }
 
-    private moveFile(inPath: string, outPath: string, hash: string) {
+    private moveFile(inPath: string, outPath: string, hash: string, logger: ILogger) {
         if (inPath === outPath) {
             return;
         }
@@ -87,7 +87,7 @@ export class TextureResizer {
             if (err !== null && typeof err === 'object' && (err as Record<string, unknown>).code === 'EXDEV') {
                 if (!this.warnedTempPartMove) {
                     this.warnedTempPartMove = true;
-                    this.logger.warn('Temporary folder is not in the same partition as the output folder. This may cause performance issues when moving cached textures to the output folder');
+                    logger.warn('Temporary folder is not in the same partition as the output folder. This may cause performance issues when moving cached textures to the output folder');
                 }
 
                 copyFileSync(inPath, outPath);
@@ -100,18 +100,18 @@ export class TextureResizer {
         this.cachedTextures.set(hash, TextureCacheType.Output);
     }
 
-    storeExtKTX2(outFolder: string, buf: Uint8Array, hash: string) {
+    storeExtKTX2(outFolder: string, buf: Uint8Array, hash: string, logger: ILogger) {
         if (this.keptExtTextures.has(hash)) {
-            this.logger.debug(`Skipped writing KTX2 image "${hash}"; already written before`);
+            logger.debug(`Skipped writing KTX2 image "${hash}"; already written before`);
             return;
         }
 
         const path = resolvePath(outFolder, hash);
-        this.writeFile(buf, path);
+        this.writeFile(buf, path, logger);
         this.keptExtTextures.add(hash);
     }
 
-    async resizeTexture(outFolder: string, resizeOpt: PackedResizeOption, inBuf: Uint8Array, inHash: string, embedded: boolean): Promise<[buffer: Uint8Array | null, hash: string]> {
+    async resizeTexture(outFolder: string, resizeOpt: PackedResizeOption, inBuf: Uint8Array, inHash: string, embedded: boolean, logger: ILogger): Promise<[buffer: Uint8Array | null, hash: string]> {
         // normalize to 'keep', or percentage-based resize operations to absolute
         // dimensions
         let inSharp: sharp.Sharp | undefined;
@@ -138,16 +138,16 @@ export class TextureResizer {
 
         // do nothing if "keep"
         if (resizeOpt === 'keep') {
-            this.logger.debug(`Image "${inHash}" kept unchanged`);
+            logger.debug(`Image "${inHash}" kept unchanged`);
 
             if (embedded) {
-                this.logger.debug(`Skipped writing kept image "${inHash}"; embedded`);
+                logger.debug(`Skipped writing kept image "${inHash}"; embedded`);
                 return [inBuf, inHash];
             } else {
                 if (this.keptExtTextures.has(inHash)) {
-                    this.logger.debug(`Skipped writing kept image "${inHash}"; already written before`);
+                    logger.debug(`Skipped writing kept image "${inHash}"; already written before`);
                 } else {
-                    this.writeFile(inBuf, this.getDestFolder(outFolder, inHash, embedded));
+                    this.writeFile(inBuf, this.getDestFolder(outFolder, inHash, embedded), logger);
                     this.keptExtTextures.add(inHash);
                 }
 
@@ -165,19 +165,19 @@ export class TextureResizer {
             }
 
             // cached texture matches, reuse
-            this.logger.debug(`Image resize operation is cached (input "${inHash}", output "${outHash}", resize ${w}x${h})`);
+            logger.debug(`Image resize operation is cached (input "${inHash}", output "${outHash}", resize ${w}x${h})`);
             const cachePath = this.getCachedPath(outFolder, outHash);
 
             if (embedded) {
                 return [readFileSync(cachePath), outHash];
             } else {
-                this.moveFile(cachePath, resolvePath(outFolder, outHash), outHash);
+                this.moveFile(cachePath, resolvePath(outFolder, outHash), outHash, logger);
                 return [null, outHash];
             }
         }
 
         // resize with sharp
-        this.logger.debug(`Resizing image "${inHash}" to ${w}x${h}`);
+        logger.debug(`Resizing image "${inHash}" to ${w}x${h}`);
 
         if (inSharp === undefined) {
             inSharp = sharp(inBuf);
@@ -186,7 +186,7 @@ export class TextureResizer {
         const outBuf = await inSharp.resize(w, h).toBuffer();
         const outHash = bufferHash(outBuf);
         const outPath = this.getDestFolder(outFolder, outHash, embedded);
-        this.writeFile(outBuf, outPath);
+        this.writeFile(outBuf, outPath, logger);
 
         if (outPath !== null) {
             this.cachedOps.push([inHash, outHash, w, h]);

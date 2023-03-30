@@ -8,6 +8,7 @@ import { resolve as resolvePath } from 'node:path';
 import { PlaykoExternalWLEMaterial } from './PlaykoExternalWLEMaterial';
 import { PlaykoExternalWLEMaterialReference } from './PlaykoExternalWLEMaterialReference';
 import { version as MODEL_SPLITTER_VERSION } from '../../package.json';
+import { PrefixedLogger } from './PrefixedLogger';
 
 import type { ConvertedMaterial, ConvertedMaterialTextureName, Metadata } from './output-types';
 import type { GltfpackArgCombo, ParsedLODConfig } from './internal-types';
@@ -16,12 +17,14 @@ import type { PatchedNodeIO } from './PatchedNodeIO';
 import type { PackedResizeOption } from './external-types';
 import type { TextureResizer } from './TextureResizer';
 
+const TRANS_NAME = 'split-single-lod';
+
 function getDummyMaterial(dummyMaterial: Material | null, gltf: Document): Material {
     return dummyMaterial ? dummyMaterial : gltf.createMaterial();
 }
 
 export async function splitSingleLODTransform(textureResizer: TextureResizer, texResizeOpt: PackedResizeOption, embedTextures: boolean, outFolder: string, gltf: Document) {
-    const logger = gltf.getLogger();
+    const logger = new PrefixedLogger(`${TRANS_NAME}: `, gltf.getLogger());
     const root = gltf.getRoot();
     const graph = gltf.getGraph();
 
@@ -43,10 +46,10 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
         if (texture.getMimeType() === 'image/ktx2') {
             logger.debug('Found final basisu image');
             hash += '.ktx2';
-            textureResizer.storeExtKTX2(outFolder, img, hash);
+            textureResizer.storeExtKTX2(outFolder, img, hash, logger);
             textureHashes.set(texture, hash);
         } else {
-            const [resBuf, resHash] = await textureResizer.resizeTexture(outFolder, texResizeOpt, img, hash, embedTextures);
+            const [resBuf, resHash] = await textureResizer.resizeTexture(outFolder, texResizeOpt, img, hash, embedTextures, logger);
 
             if (resBuf !== null) {
                 // XXX only needed if embedded. if external, resBuf is null to
@@ -122,7 +125,7 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
             }
 
             if (!hasExternalTexture) {
-                logger.debug('  - material does not depend on external texture. ignored');
+                logger.debug('Material does not depend on external texture. Ignored');
                 continue;
             }
 
@@ -160,7 +163,7 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
             // store converted material and remove original material
             const cmID = convertedMaterials.addConvertedMaterial(convertedMaterial);
             convertedMaterialsMap.set(material, cmID);
-            logger.debug(`  - material marked for removal; depends on external texture. added to converted materials list (converted material id ${cmID})`);
+            logger.debug(`Material marked for removal; depends on external texture. Added to converted materials list (converted material id ${cmID})`);
         }
 
         // replace materials in meshes with converted format and dummy material
@@ -183,7 +186,7 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
 
                     const cmi = convertedMaterialsMap.get(material);
                     if (cmi !== undefined) {
-                        logger.debug(`  - replaced material for mesh ${m} and primitive ${p} with converted material ${cmi}`);
+                        logger.debug(`Replaced material for mesh ${m} and primitive ${p} with converted material ${cmi}`);
                         const cmRef = new PlaykoExternalWLEMaterialReference(graph);
                         cmRef.setReplacedMaterial(cmi);
                         primitive.setExtension(EXTENSION_NAME, cmRef);
@@ -229,7 +232,7 @@ export async function splitSingleLOD(logger: ILogger, io: PatchedNodeIO, outName
     // transform glb
     logger.debug('Transforming GLB buffer');
     await gltfMain.transform(createTransform(
-        'split-single-lod',
+        TRANS_NAME,
         splitSingleLODTransform.bind(null, textureResizer, texResizeOpt, embedTextures, outFolder)
     ));
 

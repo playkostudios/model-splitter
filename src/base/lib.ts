@@ -175,7 +175,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         lods: []
     };
 
-    const textureResizer = new TextureResizer(tempFolderPath, logger, hasTempCacheDep && hasEmbedded && nonBasisuCount > 1);
+    const textureResizer = new TextureResizer(tempFolderPath, hasTempCacheDep && hasEmbedded && nonBasisuCount > 1, logger);
 
     try {
         for (let i = 0; i < gacCount; i++) {
