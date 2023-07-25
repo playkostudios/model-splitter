@@ -301,6 +301,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
     const mergeMaterialsInput = getElement<HTMLInputElement>('merge-materials-input');
     const aggressiveInput = getElement<HTMLInputElement>('aggressive-input');
     const basisUniversalSelect = getElement<HTMLSelectElement>('basis-universal-input');
+    const splitDepthInput = getElement<HTMLInputElement>('split-depth-input');
 
     const defaultTextureSizeInput = getElement<HTMLInputElement>('default-texture-size-input');
     let lastValidDefaultTextureSize = defaultTextureSizeInput.value;
@@ -406,9 +407,16 @@ async function startRenderer(main: HTMLElement): Promise<void> {
             const defaultMergeMaterials = mergeMaterialsInput.checked;
             const defaultAggressive = aggressiveInput.checked;
             const defaultBasisUniversal = basisUniversalSelect.value as BasisUniversalMode;
+            const splitDepth = splitDepthInput.value === '' ? 0 : Number(splitDepthInput.value);
 
             if (lodList.children.length <= LOD_ROW_ELEM_OFFSET) {
                 throw new Error('Nothing to do; no LODs added');
+            }
+
+            if (!Number.isInteger(splitDepth)) {
+                throw new Error('Split depth is not a valid integer');
+            } else if (splitDepth < 0) {
+                throw new Error('Split depth must be greater or equal to zero');
             }
 
             const defaultTextureResizing = parseTextureSize(defaultTextureSizeInput.value, false);
@@ -474,7 +482,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                     defaultEmbedTextures, defaultTextureResizing,
                     defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                     defaultAggressive, defaultBasisUniversal, gltfpackPath,
-                    force
+                    force, splitDepth
                 }, worker);
             } catch(err: unknown) {
                 assertCollisionError(err);

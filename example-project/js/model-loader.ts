@@ -1,5 +1,5 @@
 import { Component, Type } from '@wonderlandengine/api';
-import { LODModelLoader, ModelSplitterBasisLoader } from '../../lib/runtime-lib.esm';
+import { LODModelLoader, ModelSplitterBasisLoader } from '../../lib/runtime-lib.esm.js';
 
 import type { Material } from '@wonderlandengine/api';
 

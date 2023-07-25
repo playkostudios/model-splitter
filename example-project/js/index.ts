@@ -16,7 +16,7 @@ import * as API from '@wonderlandengine/api'; // Deprecated: Backward compatibil
 
 /* wle:auto-imports:start */
 import {ARCamera8thwall, Cursor, CursorTarget, DebugObject, DeviceOrientationLook, FingerCursor, FixedFoveation, HandTracking, HitTestLocation, HowlerAudioListener, HowlerAudioSource, ImageTexture, MouseLookComponent, PlayerHeight, TargetFramerate, TeleportComponent, Trail, TwoJointIkSolver, VideoTexture, VrModeActiveSwitch, Vrm, WasdControlsComponent} from '@wonderlandengine/components';
-import {ModelLoader} from './model-loader.ts';
+import {ModelLoader} from './model-loader.js';
 /* wle:auto-imports:end */
 
 /* wle:auto-constants:start */

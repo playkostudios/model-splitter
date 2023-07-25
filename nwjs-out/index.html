@@ -55,6 +55,10 @@
                 <option value="etc1s">ETC1S</option>
             </select>
         </div>
+        <div class="input-row" title="If set to an integer greater than 0, then the model will be split into multiple ones at the child nodes at the given depth. For example, a depth of 1 indicates children, 2 grandchildren, etc...">
+            <label for="split-depth-input" class="expand">Split depth</label>
+            <input type="number" id="split-depth-input" min="0" value="0" />
+        </div>
         <div class="input-row" title="The resizing to apply to all textures in the model by default. Format: 'W,H', 'WxH', 'L', 'W,H!', 'WxH!' or 'L!' for specific widths, heights or lengths, and 'W,H%', 'WxH%' or 'L%' for percentage widths, heights or lengths">
             <label for="default-texture-size-input" class="expand">Default texture size</label>
             <input type="text" id="default-texture-size-input" value="100%" />
