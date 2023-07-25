@@ -153,7 +153,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     // make sure output files are free (double/triple-checked later)
     if (!force) {
         for (let l = 0; l < lodCount; l++) {
-            assertFreeFile(resolvePath(outputFolder, `${modelName}.LOD${l}.glb`));
+            assertFreeFile(resolvePath(outputFolder, `${modelName}-part-0.LOD${l}.glb`));
         }
     }
 
@@ -165,24 +165,21 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         'draco3d.decoder': await draco3d.createDecoderModule(),
     });
 
-    // convert model to a format usable by wonderland engine
-    logger.debug('Converting to format usable by Wonderland Engine...');
+    // convert model to a format usable by wonderland engine, run gltfpack and
+    // generate each lod
     const metadata: Metadata = {};
-    const intermediateModelList = await wlefyAndSplitModel(io, inputModelPath, tempFolderPath, splitDepth, metadata);
-
-    // run gltfpack and generate each lod
     const textureResizer = new TextureResizer(tempFolderPath, hasTempCacheDep && hasEmbedded && nonBasisuCount > 1, logger);
 
     try {
         let p = 0;
-        for (const [splitName, intermediateModelPath] of intermediateModelList) {
+        await wlefyAndSplitModel(logger, io, inputModelPath, tempFolderPath, splitDepth, metadata, async (splitName: string | null, glbPath: string) => {
             const splitSuffix = splitName === null ? ' for model root' : ` for model part "${splitName}"`;
 
             for (let i = 0; i < gacCount; i++) {
                 // run gltfpack
                 const gacIdx = i;
                 logger.debug(`Running gltfpack on argument combo ${i}${splitSuffix}...`);
-                const glbBuf = await simplifyModel(tempFolderPath, gltfpackPath, intermediateModelPath, gltfpackArgCombos, gacIdx, logger);
+                const glbBuf = await simplifyModel(tempFolderPath, gltfpackPath, glbPath, gltfpackArgCombos, gacIdx, logger);
 
                 // get lods that depend on this gltfpack argument combo (gac)
                 for (let l = 0; l < lodCount; l++) {
@@ -198,6 +195,14 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
             }
 
             p++;
+        });
+
+        if (p === 0) {
+            if (splitDepth !== 0) {
+                throw new Error('No nodes at the wanted split depth; did you specify the right split depth?');
+            } else {
+                throw new Error('No models were processed. This is most likely a bug, please report it');
+            }
         }
     } finally {
         logger.debug('Cleaning up texture resizer cache');
