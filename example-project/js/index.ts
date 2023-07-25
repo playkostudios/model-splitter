@@ -15,21 +15,27 @@ import {loadRuntime} from '@wonderlandengine/api';
 import * as API from '@wonderlandengine/api'; // Deprecated: Backward compatibility.
 
 /* wle:auto-imports:start */
-import {ARCamera8thwall, Cursor, CursorTarget, DebugObject, DeviceOrientationLook, FingerCursor, FixedFoveation, HandTracking, HitTestLocation, HowlerAudioListener, HowlerAudioSource, ImageTexture, MouseLookComponent, PlayerHeight, TargetFramerate, TeleportComponent, Trail, TwoJointIkSolver, VideoTexture, VrModeActiveSwitch, Vrm, WasdControlsComponent} from '@wonderlandengine/components';
+import {MouseLookComponent} from '@wonderlandengine/components';
+import {WasdControlsComponent} from '@wonderlandengine/components';
 import {ModelLoader} from './model-loader.js';
 /* wle:auto-imports:end */
 
 /* wle:auto-constants:start */
-const ProjectName = 'model-splitter-example';
-const RuntimeBaseName = 'WonderlandRuntime';
-const WithPhysX = false;
-const WithLoader = true;
+const RuntimeOptions = {
+    physx: false,
+    loader: true,
+    xrFramebufferScaleFactor: 1,
+    canvas: 'canvas',
+};
+const Constants = {
+    ProjectName: 'model-splitter-example',
+    RuntimeBaseName: 'WonderlandRuntime',
+    WebXRRequiredFeatures: ['local',],
+    WebXROptionalFeatures: ['local','hand-tracking','hit-test',],
+};
 /* wle:auto-constants:end */
 
-loadRuntime(RuntimeBaseName, {
-    physx: WithPhysX,
-    loader: WithLoader
-}).then((engine) => {
+loadRuntime(Constants.RuntimeBaseName, RuntimeOptions).then((engine) => {
     Object.assign(engine, API); // Deprecated: Backward compatibility.
     window.WL = engine; // Deprecated: Backward compatibility.
 
@@ -48,11 +54,12 @@ loadRuntime(RuntimeBaseName, {
     }
 
     /* wle:auto-register:start */
-engine.registerComponent(ARCamera8thwall, Cursor, CursorTarget, DebugObject, DeviceOrientationLook, FingerCursor, FixedFoveation, HandTracking, HitTestLocation, HowlerAudioListener, HowlerAudioSource, ImageTexture, MouseLookComponent, PlayerHeight, TargetFramerate, TeleportComponent, Trail, TwoJointIkSolver, VideoTexture, VrModeActiveSwitch, Vrm, WasdControlsComponent);
+engine.registerComponent(MouseLookComponent);
+engine.registerComponent(WasdControlsComponent);
 engine.registerComponent(ModelLoader);
 /* wle:auto-register:end */
 
-    engine.scene.load(`${ProjectName}.bin`);
+    engine.scene.load(`${Constants.ProjectName}.bin`);
 
     /* wle:auto-benchmark:start */
 /* wle:auto-benchmark:end */

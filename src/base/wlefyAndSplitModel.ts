@@ -115,6 +115,9 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
     metadata.partLods![origSplitName] = {
         lods: [],
         transform: origNode.getWorldMatrix(),
+        translation: origNode.getWorldTranslation(),
+        rotation: origNode.getWorldRotation(),
+        scale: origNode.getWorldScale(),
     };
 
     let splitName = origSplitName;

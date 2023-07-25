@@ -158,8 +158,10 @@
                 {
                     "type": "light",
                     "light": {
-                        "attenuation": 0.1
-                    }
+                        "attenuation": 0.1,
+                        "type": "point"
+                    },
+                    "active": true
                 }
             ],
             "translation": [
@@ -245,10 +247,11 @@
                         "phongTemplateMaterial": "62",
                         "avoidPBR": true,
                         "lod": 1,
-                        "cdnRoot": "~external/",
-                        "metadataURLFilename": "pizzeria.metadata.json",
+                        "cdnRoot": "~embedded/",
+                        "metadataURLFilename": "model.metadata.json",
                         "pbrOpaqueTemplateMaterial": "65",
-                        "phongOpaqueTemplateMaterial": "66"
+                        "phongOpaqueTemplateMaterial": "66",
+                        "partName": "airship1"
                     }
                 }
             ],
@@ -516,7 +519,7 @@
             "version": [
                 1,
                 0,
-                0
+                4
             ]
         },
         "vr": {

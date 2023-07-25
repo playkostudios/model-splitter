@@ -9,6 +9,7 @@ export class ModelLoader extends Component {
     metadataURLFilename!: string;
     lod!: number;
     avoidPBR!: boolean;
+    partName!: string;
     pbrTemplateMaterial!: Material | null;
     phongTemplateMaterial!: Material | null;
     pbrOpaqueTemplateMaterial!: Material | null;
@@ -20,6 +21,7 @@ export class ModelLoader extends Component {
         metadataURLFilename: {type: Type.String},
         lod: {type: Type.Int, default: 0},
         avoidPBR: {type: Type.Bool, default: false},
+        partName: {type: Type.String},
         pbrTemplateMaterial: {type: Type.Material},
         phongTemplateMaterial: {type: Type.Material},
         pbrOpaqueTemplateMaterial: {type: Type.Material},
@@ -32,6 +34,10 @@ export class ModelLoader extends Component {
     }
 
     override start() {
-        this.modelLoader.loadFromURL(this.metadataURLFilename, this.lod, this.avoidPBR, this.object, this.phongOpaqueTemplateMaterial, this.phongTemplateMaterial, this.pbrOpaqueTemplateMaterial, this.pbrTemplateMaterial);
+        if (this.partName === '') {
+            this.modelLoader.loadFromURL(this.metadataURLFilename, this.lod, this.avoidPBR, this.object, this.phongOpaqueTemplateMaterial, this.phongTemplateMaterial, this.pbrOpaqueTemplateMaterial, this.pbrTemplateMaterial);
+        } else {
+            this.modelLoader.loadPartFromURL(this.metadataURLFilename, this.partName, this.lod, this.avoidPBR, this.object, this.phongOpaqueTemplateMaterial, this.phongTemplateMaterial, this.pbrOpaqueTemplateMaterial, this.pbrTemplateMaterial);
+        }
     }
 }

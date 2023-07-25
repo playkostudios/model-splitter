@@ -2,13 +2,12 @@ import { loadImage } from './loadImage';
 import { EXTENSION_NAME } from '../base/extension-name';
 import { Texture } from '@wonderlandengine/api';
 
-import type { Material, MeshComponent, Object as $Object, WonderlandEngine } from '@wonderlandengine/api';
-import type { ConvertedMaterial, ConvertedMaterialTextureName, ConvertedMaterialUniformName, Metadata } from '../base/output-types';
+import { Object3D } from '@wonderlandengine/api';
+import type { Material, MeshComponent, WonderlandEngine } from '@wonderlandengine/api';
+import type { ConvertedMaterial, ConvertedMaterialTextureName, ConvertedMaterialUniformName, LOD, Metadata } from '../base/output-types';
 import type { ModelSplitterBasisLoader } from './ModelSplitterBasisLoader';
 
 type ExtMeshData = Record<number, Record<string, { replacedMaterials: Array<[meshIdx: number, matIdx: number]> }>>;
-type ExtRootData = Record<string, { convertedMaterials: Array<ConvertedMaterial> }>;
-type ExtData = { root: ExtRootData, mesh: ExtMeshData };
 
 export class LODModelLoader {
     textures = new Map<string, Texture | null>();
@@ -21,7 +20,7 @@ export class LODModelLoader {
         }
     }
 
-    async loadFromURL(metadataURL: string, lodLevel: number, avoidPBR: boolean, parent: $Object | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
+    async loadMetadata(metadataURL: string) {
         // fetch metadata
         if (metadataURL === '') {
             throw new Error('No metadata URL specified');
@@ -34,14 +33,16 @@ export class LODModelLoader {
         }
 
         const metadata = await reponse.json();
+        if (!(metadata.lods || metadata.partLods)) {
+            throw new Error('Invalid metadata file');
+        }
 
-        // load LOD
-        return await this.load(metadata, lodLevel, avoidPBR, parent, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
+        return metadata;
     }
 
-    async load(metadata: Metadata, lodLevel: number, avoidPBR: boolean, parent: $Object | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
+    async loadFromLODArray(lods: Array<LOD>, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
         // validate lod level and correct if necessary
-        const lodMax = metadata.lods.length;
+        const lodMax = lods.length;
 
         if (lodLevel < 0) {
             console.warn('Negative LOD level. Corrected to 0');
@@ -52,10 +53,19 @@ export class LODModelLoader {
         }
 
         // load model
-        const modelURL = new URL(metadata.lods[lodLevel].file, this.cdnRoot);
-        // TODO stop typecasting when WLE type defs are fixed
-        const sceneAppendParams = { loadGltfExtensions: true } as unknown as Record<string, string>;
-        const { root, extensions } = await this.engine.scene.append(modelURL.href, sceneAppendParams) as { root: $Object, extensions: ExtData };
+        const modelURL = new URL(lods[lodLevel].file, this.cdnRoot);
+        const result = await this.engine.scene.append(modelURL.href, { loadGltfExtensions: true });
+
+        if (result === null) {
+            throw new Error('Failed to load model');
+        } else if (result instanceof Object3D) {
+            throw new Error('Unexpected Object3D result from Scene.append; expeceted SceneAppendResultWithExtensions');
+        }
+
+        const { extensions, root } = result;
+        if (root === null) {
+            throw new Error('Failed to load model');
+        }
 
         // check if there are converted materials (external textures)
         let convertedMaterials: Array<ConvertedMaterial> | null = null;
@@ -76,7 +86,7 @@ export class LODModelLoader {
         // apply materials
         if (convertedMaterials !== null) {
             const materials = await this.loadMaterials(convertedMaterials, avoidPBR, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
-            this.replaceMaterials(root, extensions.mesh, materials);
+            this.replaceMaterials(root, extensions.mesh as ExtMeshData, materials);
         }
 
         // reparent
@@ -92,10 +102,47 @@ export class LODModelLoader {
         return root;
     }
 
-    private deactivateMeshes(root: $Object, deactivateList: Array<MeshComponent>): void {
+    async loadFromURL(metadataURL: string, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
+        return await this.load(await this.loadMetadata(metadataURL), lodLevel, avoidPBR, parent, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
+    }
+
+    async load(metadata: Metadata, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
+        const lods = metadata.lods;
+        if (!lods) {
+            throw new Error("This metadata file doesn't contain root-only LOD data. Maybe it's a metadata file for depth-split models?");
+        }
+
+        return await this.loadFromLODArray(lods, lodLevel, avoidPBR, parent, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
+    }
+
+    async loadPartFromURL(metadataURL: string, partName: string, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
+        return await this.loadPart(await this.loadMetadata(metadataURL), partName, lodLevel, avoidPBR, parent, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
+    }
+
+    async loadPart(metadata: Metadata, partName: string, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material): Promise<[lod: Object3D, transform: Array<number>, translation: Array<number>, rotation: Array<number>, scale: Array<number>]> {
+        const partLods = metadata.partLods;
+        if (!partLods) {
+            throw new Error("This metadata file doesn't contain depth-split LOD data. Maybe it's a metadata file for root-only models?");
+        }
+
+        const partMeta = partLods[partName];
+        if (partMeta === undefined) {
+            throw new Error(`Metadata file has no part named "${partName}"`);
+        }
+
+        return [
+            await this.loadFromLODArray(partMeta.lods, lodLevel, avoidPBR, parent, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial),
+            [...partMeta.transform],
+            [...partMeta.translation],
+            [...partMeta.rotation],
+            [...partMeta.scale],
+        ];
+    }
+
+    private deactivateMeshes(root: Object3D, deactivateList: Array<MeshComponent>): void {
         const stack = [root];
         while (stack.length > 0) {
-            const next = stack.pop() as $Object;
+            const next = stack.pop() as Object3D;
             const meshes = next.getComponents('mesh') as Array<MeshComponent>;
 
             for (const mesh of meshes) {
@@ -245,14 +292,14 @@ export class LODModelLoader {
         return materials;
     }
 
-    private replaceMaterials(root: $Object, extMeshData: ExtMeshData, materials: Array<Material | null>) {
+    private replaceMaterials(root: Object3D, extMeshData: ExtMeshData, materials: Array<Material | null>) {
         if (materials.length === 0) {
             return;
         }
 
         const stack = [root];
         while (stack.length > 0) {
-            const next = stack.pop() as $Object;
+            const next = stack.pop() as Object3D;
             const objExtList = extMeshData[next.objectId];
 
             if (objExtList && objExtList[EXTENSION_NAME]) {

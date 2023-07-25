@@ -1,4 +1,4 @@
-import { type mat4 } from '@gltf-transform/core';
+import type { vec3, mat4, vec4 } from '@gltf-transform/core';
 
 export type ConvertedMaterialTextureName = 'emissiveTexture' | 'normalTexture' | 'albedoTexture' | 'roughnessMetallicTexture';
 export type ConvertedMaterialUniformName = ConvertedMaterialTextureName | 'albedoFactor' | 'emissiveFactor' | 'alphaMaskThreshold' | 'metallicFactor' | 'roughnessFactor';
@@ -25,6 +25,9 @@ export interface Metadata {
 export interface PartMetadata {
     lods: Array<LOD>,
     transform: mat4,
+    translation: vec3,
+    rotation: vec4,
+    scale: vec3,
 }
 
 export interface LOD {
