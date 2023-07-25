@@ -93,6 +93,11 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
 
     wantedScene.addChild(target);
 
+    // make sure child has no local transform
+    target.setTranslation([0,0,0]);
+    target.setRotation([0,0,0,1]);
+    target.setScale([1,1,1]);
+
     // trim out unused resources (prune)
     doc.transform(
         partition({
@@ -172,7 +177,7 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
             const childCount = children.length;
             for (let c = 0; c < childCount; c++) {
                 const child = children[c];
-                await extractAtDepth(logger, origDoc, s, c, child, 0, splitDepth, docTransformerCallback, metadata, takenNames);
+                await extractAtDepth(logger, origDoc, s, c, child, 1, splitDepth, docTransformerCallback, metadata, takenNames);
             }
         }
     }
