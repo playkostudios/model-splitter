@@ -27,4 +27,5 @@ export interface SplitModelOptions {
     gltfpackPath?: string;
     force?: boolean;
     logger?: ILogger;
+    splitDepth?: number;
 }

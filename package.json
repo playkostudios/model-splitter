@@ -7,7 +7,7 @@
   "types": "./lib/index.d.ts",
   "type": "commonjs",
   "bin": "./lib/cli.js",
-  "packageManager": "pnpm@8.0.0",
+  "packageManager": "pnpm@8.6.10",
   "scripts": {
     "prepare": "pnpm run copy-third-party-blobs",
     "lint": "eslint ./src",

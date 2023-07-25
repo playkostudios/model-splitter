@@ -8,7 +8,7 @@ import { ConsoleLogger } from './ConsoleLogger';
 import { KHRONOS_EXTENSIONS } from '@gltf-transform/extensions';
 import draco3d from 'draco3dgltf';
 import { PrefixedLogger } from './PrefixedLogger';
-import { wlefyModel } from './wlefyModel';
+import { wlefyAndSplitModel } from './wlefyAndSplitModel';
 import { tmpdir } from 'node:os';
 import { PatchedNodeIO } from './PatchedNodeIO';
 import { PlaykoExternalWLEMaterial } from './PlaykoExternalWLEMaterial';
@@ -32,11 +32,12 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     const gltfpackPath = options.gltfpackPath ?? null;
     let force = options.force ?? false;
     const logger = options.logger ?? new ConsoleLogger();
+    const splitDepth = options.splitDepth ?? 0;
 
     // verify that there is work to do
     const lodCount = lods.length;
     if (lodCount === 0) {
-        throw InvalidInputError.fromDesc('Nothing to do');
+        throw InvalidInputError.fromDesc('Nothing to do, no LODS specified');
     }
 
     // verify that input model exists
@@ -166,33 +167,37 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
 
     // convert model to a format usable by wonderland engine
     logger.debug('Converting to format usable by Wonderland Engine...');
-    const wlefiedModelPath = await wlefyModel(io, inputModelPath, tempFolderPath);
+    const metadata: Metadata = {};
+    const intermediateModelList = await wlefyAndSplitModel(io, inputModelPath, tempFolderPath, splitDepth, metadata);
 
     // run gltfpack and generate each lod
-    const metadata: Metadata = {
-        lods: []
-    };
-
     const textureResizer = new TextureResizer(tempFolderPath, hasTempCacheDep && hasEmbedded && nonBasisuCount > 1, logger);
 
     try {
-        for (let i = 0; i < gacCount; i++) {
-            // run gltfpack
-            const gacIdx = i;
-            logger.debug(`Running gltfpack on argument combo ${i}...`);
-            const glbBuf = await simplifyModel(tempFolderPath, gltfpackPath, wlefiedModelPath, gltfpackArgCombos, gacIdx, logger);
+        let p = 0;
+        for (const [splitName, intermediateModelPath] of intermediateModelList) {
+            const splitSuffix = splitName === null ? ' for model root' : ` for model part "${splitName}"`;
 
-            // get lods that depend on this gltfpack argument combo (gac)
-            for (let l = 0; l < lodCount; l++) {
-                const lod = lodsParsed[l];
-                if (gacIdx !== lod[0]) {
-                    continue;
+            for (let i = 0; i < gacCount; i++) {
+                // run gltfpack
+                const gacIdx = i;
+                logger.debug(`Running gltfpack on argument combo ${i}${splitSuffix}...`);
+                const glbBuf = await simplifyModel(tempFolderPath, gltfpackPath, intermediateModelPath, gltfpackArgCombos, gacIdx, logger);
+
+                // get lods that depend on this gltfpack argument combo (gac)
+                for (let l = 0; l < lodCount; l++) {
+                    const lod = lodsParsed[l];
+                    if (gacIdx !== lod[0]) {
+                        continue;
+                    }
+
+                    logger.debug(`Starting to generate LOD${l}${splitSuffix}...`);
+                    const outName = `${modelName}-part-${p}.LOD${l}.glb`;
+                    await splitSingleLOD(logger, io, outName, outputFolder, splitName, metadata, gltfpackArgCombos, glbBuf, lod, force, textureResizer);
                 }
-
-                logger.debug(`Starting to generate LOD${l}...`);
-                const outName = `${modelName}.LOD${l}.glb`;
-                await splitSingleLOD(logger, io, outName, outputFolder, metadata, gltfpackArgCombos, glbBuf, lod, force, textureResizer);
             }
+
+            p++;
         }
     } finally {
         logger.debug('Cleaning up texture resizer cache');

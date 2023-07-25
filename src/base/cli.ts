@@ -31,6 +31,7 @@ async function main() {
     let gltfpackPath: string | undefined;
     let logLevel: Verbosity | null = null;
     const lods: LODConfigList = [];
+    let splitDepth = 0;
 
     try {
         const cliArgs = process.argv.slice(2);
@@ -38,6 +39,7 @@ async function main() {
         let expectLogLevel = false;
         let expectBasisu = false;
         let expectGltfpackPath = false;
+        let expectSplitDepth = false;
 
         for (const arg of cliArgs) {
             if (inputPath === null) {
@@ -74,6 +76,13 @@ async function main() {
             } else if (expectGltfpackPath) {
                 expectGltfpackPath = false;
                 gltfpackPath = arg;
+            } else if (expectSplitDepth) {
+                expectSplitDepth = false;
+                splitDepth = Number(arg);
+
+                if (!Number.isInteger(splitDepth) || splitDepth < 0) {
+                    throw new Error('Split depth must be a valid integer greater or equal to 0');
+                }
             } else if (arg === '--help') {
                 printHelp(process.argv[1]);
                 process.exit(0);
@@ -98,6 +107,8 @@ async function main() {
                 expectBasisu = true;
             } else if (arg === '--gltfpack-path') {
                 expectGltfpackPath = true;
+            } else if (arg === '--split-depth') {
+                expectSplitDepth = true;
             } else {
                 if (arg.startsWith('--')) {
                     throw new Error(`Unknown option: ${arg}`);
@@ -192,7 +203,8 @@ async function main() {
         await splitModel(inputPath, outputFolder, lods, {
             defaultEmbedTextures, defaultTextureResizing, force,
             defaultOptimizeSceneHierarchy, defaultMergeMaterials,
-            defaultAggressive, defaultBasisUniversal, gltfpackPath, logger
+            defaultAggressive, defaultBasisUniversal, gltfpackPath, logger,
+            splitDepth
         });
     } catch(err) {
         if (err instanceof CollisionError) {

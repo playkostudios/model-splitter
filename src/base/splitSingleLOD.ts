@@ -10,7 +10,7 @@ import { PlaykoExternalWLEMaterialReference } from './PlaykoExternalWLEMaterialR
 import { version as MODEL_SPLITTER_VERSION } from '../../package.json';
 import { PrefixedLogger } from './PrefixedLogger';
 
-import type { ConvertedMaterial, ConvertedMaterialTextureName, Metadata } from './output-types';
+import type { ConvertedMaterial, ConvertedMaterialTextureName, LOD, Metadata } from './output-types';
 import type { GltfpackArgCombo, ParsedLODConfig } from './internal-types';
 import type { Document, Texture, Material, ILogger } from '@gltf-transform/core';
 import type { PatchedNodeIO } from './PatchedNodeIO';
@@ -221,7 +221,7 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
     asset.generator = `model-splitter ${MODEL_SPLITTER_VERSION} (gltfpack, glTF-Transform ${GLTF_TRANSFORM_VERSION})`;
 }
 
-export async function splitSingleLOD(logger: ILogger, io: PatchedNodeIO, outName: string, outFolder: string, metadata: Metadata, gltfpackArgCombos: Array<GltfpackArgCombo>, glbBuf: Uint8Array, lodOptions: ParsedLODConfig, force: boolean, textureResizer: TextureResizer) {
+export async function splitSingleLOD(logger: ILogger, io: PatchedNodeIO, outName: string, outFolder: string, splitName: string | null, metadata: Metadata, gltfpackArgCombos: Array<GltfpackArgCombo>, glbBuf: Uint8Array, lodOptions: ParsedLODConfig, force: boolean, textureResizer: TextureResizer) {
     const outPath = resolvePath(outFolder, outName);
     const [gacIdx, texResizeOpt, embedTextures] = lodOptions;
 
@@ -248,11 +248,25 @@ export async function splitSingleLOD(logger: ILogger, io: PatchedNodeIO, outName
     logger.debug('Done writing LOD');
 
     // update metadata
-    metadata.lods.push({
+    const lodMeta: LOD = {
         file: outName,
         lodRatio: gltfpackArgCombos[gacIdx][0],
         bytes: statSync(outPath).size
-    });
+    };
+
+    if (splitName === null) {
+        if (metadata.lods) {
+            metadata.lods.push(lodMeta);
+        } else {
+            throw new Error('Unexpected missing root in metadata. This is a bug, please report it');
+        }
+    } else {
+        if (metadata.partLods?.[splitName]) {
+            metadata.partLods[splitName].lods.push(lodMeta);
+        } else {
+            throw new Error('Unexpected missing part in metadata. This is a bug, please report it');
+        }
+    }
 
     logger.debug('Done updating metadata');
 }
