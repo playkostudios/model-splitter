@@ -167,7 +167,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
 
     // convert model to a format usable by wonderland engine, run gltfpack and
     // generate each lod
-    const metadata: Metadata = {};
+    const metadata = <Metadata>{};
     const textureResizer = new TextureResizer(tempFolderPath, hasTempCacheDep && hasEmbedded && nonBasisuCount > 1, logger);
 
     try {

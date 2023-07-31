@@ -4,7 +4,7 @@ import { Texture } from '@wonderlandengine/api';
 
 import { Object3D } from '@wonderlandengine/api';
 import type { Material, MeshComponent, WonderlandEngine } from '@wonderlandengine/api';
-import type { ConvertedMaterial, ConvertedMaterialTextureName, ConvertedMaterialUniformName, LOD, Metadata } from '../base/output-types';
+import type { ConvertedMaterial, ConvertedMaterialTextureName, ConvertedMaterialUniformName, DepthSplitMetadata, LOD, Metadata, RootOnlyMetadata } from '../base/output-types';
 import type { ModelSplitterBasisLoader } from './ModelSplitterBasisLoader';
 
 type ExtMeshData = Record<number, Record<string, { replacedMaterials: Array<[meshIdx: number, matIdx: number]> }>>;
@@ -20,7 +20,7 @@ export class LODModelLoader {
         }
     }
 
-    async loadMetadata(metadataURL: string) {
+    async loadMetadata(metadataURL: string): Promise<Metadata> {
         // fetch metadata
         if (metadataURL === '') {
             throw new Error('No metadata URL specified');
@@ -103,10 +103,10 @@ export class LODModelLoader {
     }
 
     async loadFromURL(metadataURL: string, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
-        return await this.load(await this.loadMetadata(metadataURL), lodLevel, avoidPBR, parent, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
+        return await this.load(await this.loadMetadata(metadataURL) as RootOnlyMetadata, lodLevel, avoidPBR, parent, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
     }
 
-    async load(metadata: Metadata, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
+    async load(metadata: RootOnlyMetadata, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
         const lods = metadata.lods;
         if (!lods) {
             throw new Error("This metadata file doesn't contain root-only LOD data. Maybe it's a metadata file for depth-split models?");
@@ -116,10 +116,10 @@ export class LODModelLoader {
     }
 
     async loadPartFromURL(metadataURL: string, partName: string, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
-        return await this.loadPart(await this.loadMetadata(metadataURL), partName, lodLevel, avoidPBR, parent, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
+        return await this.loadPart(await this.loadMetadata(metadataURL) as DepthSplitMetadata, partName, lodLevel, avoidPBR, parent, phongOpaqueTemplateMaterial, phongTransparentTemplateMaterial, pbrOpaqueTemplateMaterial, pbrTransparentTemplateMaterial);
     }
 
-    async loadPart(metadata: Metadata, partName: string, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material): Promise<[lod: Object3D, transform: Array<number>, translation: Array<number>, rotation: Array<number>, scale: Array<number>]> {
+    async loadPart(metadata: DepthSplitMetadata, partName: string, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material): Promise<[lod: Object3D, transform: Array<number>, translation: Array<number>, rotation: Array<number>, scale: Array<number>]> {
         const partLods = metadata.partLods;
         if (!partLods) {
             throw new Error("This metadata file doesn't contain depth-split LOD data. Maybe it's a metadata file for root-only models?");

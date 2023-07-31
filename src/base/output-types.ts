@@ -17,12 +17,17 @@ export interface ConvertedMaterial {
     roughnessFactor?: number,
 }
 
-export interface Metadata {
-    partLods?: Record<string, PartMetadata>,
-    lods?: Array<LOD>,
+export type Metadata = RootOnlyMetadata | DepthSplitMetadata;
+
+export interface RootOnlyMetadata {
+    lods: Array<LOD>,
 }
 
-export interface PartMetadata {
+export interface DepthSplitMetadata {
+    partLods: Record<string, PartLODs>,
+}
+
+export interface PartLODs {
     lods: Array<LOD>,
     transform: mat4,
     translation: vec3,

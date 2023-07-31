@@ -3,7 +3,7 @@ import { resample, prune, dequantize, metalRough, tangents, unweld, partition, u
 import { writeFileSync } from 'fs';
 import { generateTangents } from 'mikktspace';
 import { resolve as resolvePath } from 'node:path';
-import { type Metadata } from './output-types';
+import { type RootOnlyMetadata, type DepthSplitMetadata, type Metadata } from './output-types';
 
 import type { PatchedNodeIO } from './PatchedNodeIO';
 
@@ -40,7 +40,7 @@ function scanNodes(focus: Node, visited: Set<Node>) {
     }
 }
 
-async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: number, origSceneChildIdx: number, origNode: Node, depth: number, targetDepth: number, docTransformerCallback: DocTransformerCallback, metadata: Metadata, takenNames: Set<string>) {
+async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: number, origSceneChildIdx: number, origNode: Node, depth: number, targetDepth: number, docTransformerCallback: DocTransformerCallback, metadata: DepthSplitMetadata, takenNames: Set<string>) {
     if (depth > targetDepth) {
         // XXX just in case, not really necessary
         return;
@@ -111,8 +111,7 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
     );
 
     // add metadata and input
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    metadata.partLods![origSplitName] = {
+    metadata.partLods[origSplitName] = {
         lods: [],
         transform: origNode.getWorldMatrix(),
         translation: origNode.getWorldTranslation(),
@@ -165,10 +164,12 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
     }
 
     if (splitDepth === 0) {
-        metadata.lods = [];
+        const roMetadata = metadata as RootOnlyMetadata;
+        roMetadata.lods = [];
         await docTransformerCallback(null, origDoc);
     } else {
-        metadata.partLods = {};
+        const dsMetadata = metadata as DepthSplitMetadata;
+        dsMetadata.partLods = {};
         const root = origDoc.getRoot();
         const scenes = root.listScenes();
         const sceneCount = scenes.length;
@@ -180,7 +181,7 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
             const childCount = children.length;
             for (let c = 0; c < childCount; c++) {
                 const child = children[c];
-                await extractAtDepth(logger, origDoc, s, c, child, 1, splitDepth, docTransformerCallback, metadata, takenNames);
+                await extractAtDepth(logger, origDoc, s, c, child, 1, splitDepth, docTransformerCallback, dsMetadata, takenNames);
             }
         }
     }

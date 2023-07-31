@@ -10,7 +10,7 @@ import { PlaykoExternalWLEMaterialReference } from './PlaykoExternalWLEMaterialR
 import { version as MODEL_SPLITTER_VERSION } from '../../package.json';
 import { PrefixedLogger } from './PrefixedLogger';
 
-import type { ConvertedMaterial, ConvertedMaterialTextureName, LOD, Metadata } from './output-types';
+import type { ConvertedMaterial, ConvertedMaterialTextureName, DepthSplitMetadata, LOD, Metadata, RootOnlyMetadata } from './output-types';
 import type { GltfpackArgCombo, ParsedLODConfig } from './internal-types';
 import type { Document, Texture, Material, ILogger } from '@gltf-transform/core';
 import type { PatchedNodeIO } from './PatchedNodeIO';
@@ -255,14 +255,16 @@ export async function splitSingleLOD(logger: ILogger, io: PatchedNodeIO, outName
     };
 
     if (splitName === null) {
-        if (metadata.lods) {
-            metadata.lods.push(lodMeta);
+        const roMetadata = metadata as RootOnlyMetadata;
+        if (roMetadata.lods) {
+            roMetadata.lods.push(lodMeta);
         } else {
             throw new Error('Unexpected missing root in metadata. This is a bug, please report it');
         }
     } else {
-        if (metadata.partLods?.[splitName]) {
-            metadata.partLods[splitName].lods.push(lodMeta);
+        const dsMetadata = metadata as DepthSplitMetadata;
+        if (dsMetadata.partLods[splitName]) {
+            dsMetadata.partLods[splitName].lods.push(lodMeta);
         } else {
             throw new Error('Unexpected missing part in metadata. This is a bug, please report it');
         }
