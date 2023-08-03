@@ -1,6 +1,6 @@
 {
   "name": "model-splitter",
-  "version": "2.4.2",
+  "version": "3.0.0",
   "description": "Splits a model into multiple models with different LOD levels and downscales textures. For use with Wonderland Engine",
   "main": "lib/index.cjs.js",
   "exports": {
@@ -16,7 +16,7 @@
   "types": "./lib/index.cjs.d.ts",
   "type": "commonjs",
   "bin": "./lib/cli.js",
-  "packageManager": "pnpm@8.6.10",
+  "packageManager": "pnpm@8.6.11",
   "scripts": {
     "prepare": "pnpm run copy-third-party-blobs",
     "lint": "eslint ./src",
@@ -83,6 +83,7 @@
     "draco3dgltf": "^1.5.6",
     "esbuild": "^0.16.17",
     "eslint": "^8.36.0",
+    "gl-matrix": "^3.4.3",
     "gm": "^1.25.0",
     "mikktspace": "^1.1.1",
     "node-notifier": "^10.0.1",

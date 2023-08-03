@@ -1,5 +1,3 @@
-import type { vec3, mat4, vec4 } from '@gltf-transform/core';
-
 export type ConvertedMaterialTextureName = 'emissiveTexture' | 'normalTexture' | 'albedoTexture' | 'roughnessMetallicTexture';
 export type ConvertedMaterialUniformName = ConvertedMaterialTextureName | 'albedoFactor' | 'emissiveFactor' | 'alphaMaskThreshold' | 'metallicFactor' | 'roughnessFactor';
 
@@ -17,22 +15,11 @@ export interface ConvertedMaterial {
     roughnessFactor?: number,
 }
 
-export type Metadata = RootOnlyMetadata | DepthSplitMetadata;
+export type BoundingBox = [minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number];
 
-export interface RootOnlyMetadata {
+export interface Metadata {
     lods: Array<LOD>,
-}
-
-export interface DepthSplitMetadata {
-    partLods: Record<string, PartLODs>,
-}
-
-export interface PartLODs {
-    lods: Array<LOD>,
-    transform: mat4,
-    translation: vec3,
-    rotation: vec4,
-    scale: vec3,
+    bounds: BoundingBox,
 }
 
 export interface LOD {

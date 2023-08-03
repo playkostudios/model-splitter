@@ -302,6 +302,9 @@ async function startRenderer(main: HTMLElement): Promise<void> {
     const aggressiveInput = getElement<HTMLInputElement>('aggressive-input');
     const basisUniversalSelect = getElement<HTMLSelectElement>('basis-universal-input');
     const splitDepthInput = getElement<HTMLInputElement>('split-depth-input');
+    const resetPositionInput = getElement<HTMLInputElement>('reset-position-input');
+    const resetRotationInput = getElement<HTMLInputElement>('reset-rotation-input');
+    const resetScaleInput = getElement<HTMLInputElement>('reset-scale-input');
 
     const defaultTextureSizeInput = getElement<HTMLInputElement>('default-texture-size-input');
     let lastValidDefaultTextureSize = defaultTextureSizeInput.value;
@@ -408,6 +411,9 @@ async function startRenderer(main: HTMLElement): Promise<void> {
             const defaultAggressive = aggressiveInput.checked;
             const defaultBasisUniversal = basisUniversalSelect.value as BasisUniversalMode;
             const splitDepth = splitDepthInput.value === '' ? 0 : Number(splitDepthInput.value);
+            const resetPosition = resetPositionInput.checked;
+            const resetRotation = resetRotationInput.checked;
+            const resetScale = resetScaleInput.checked;
 
             if (lodList.children.length <= LOD_ROW_ELEM_OFFSET) {
                 throw new Error('Nothing to do; no LODs added');
@@ -482,7 +488,8 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                     defaultEmbedTextures, defaultTextureResizing,
                     defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                     defaultAggressive, defaultBasisUniversal, gltfpackPath,
-                    force, splitDepth
+                    splitDepth, resetPosition, resetRotation, resetScale,
+                    force
                 }, worker);
             } catch(err: unknown) {
                 assertCollisionError(err);
@@ -492,6 +499,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                         defaultEmbedTextures, defaultTextureResizing,
                         defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                         defaultAggressive, defaultBasisUniversal, gltfpackPath,
+                        splitDepth, resetPosition, resetRotation, resetScale,
                         force: true
                     }, worker);
                 } else {

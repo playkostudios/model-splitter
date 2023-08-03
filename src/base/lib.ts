@@ -33,6 +33,9 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     let force = options.force ?? false;
     const logger = options.logger ?? new ConsoleLogger();
     const splitDepth = options.splitDepth ?? 0;
+    const resetPosition = options.resetPosition ?? false;
+    const resetRotation = options.resetRotation ?? false;
+    const resetScale = options.resetScale ?? false;
 
     // verify that there is work to do
     const lodCount = lods.length;
@@ -150,13 +153,6 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         modelName = modelName.substring(0, modelName.length - extLen);
     }
 
-    // make sure output files are free (double/triple-checked later)
-    if (!force) {
-        for (let l = 0; l < lodCount; l++) {
-            assertFreeFile(resolvePath(outputFolder, `${modelName}-part-0.LOD${l}.glb`));
-        }
-    }
-
     // make node IO for gltf-transform
     const io = new PatchedNodeIO();
     io.setLogger(new PrefixedLogger('[glTF-Transform] ', logger));
@@ -165,20 +161,28 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         'draco3d.decoder': await draco3d.createDecoderModule(),
     });
 
-    // convert model to a format usable by wonderland engine, run gltfpack and
-    // generate each lod
-    const metadata = <Metadata>{};
+    // convert model to a format usable by wonderland engine, run gltfpack,
+    // generate each lod, and write metadata file for part
     const textureResizer = new TextureResizer(tempFolderPath, hasTempCacheDep && hasEmbedded && nonBasisuCount > 1, logger);
 
     try {
-        let p = 0;
-        await wlefyAndSplitModel(logger, io, inputModelPath, tempFolderPath, splitDepth, metadata, async (splitName: string | null, glbPath: string) => {
-            const splitSuffix = splitName === null ? ' for model root' : ` for model part "${splitName}"`;
+        let hadParts = false;
+        await wlefyAndSplitModel(logger, io, inputModelPath, tempFolderPath, splitDepth, resetPosition, resetRotation, resetScale, async (splitName: string | null, glbPath: string, metadata: Metadata) => {
+            hadParts = true;
+            const splitSuffix = splitName === null ? 'for model root' : `for model part "${splitName}"`;
+            const finalPartName = splitName === null ? modelName : `${modelName}-${splitName}`;
+            const metaOutPath = resolvePath(outputFolder, `${finalPartName}.metadata.json`);
 
+            // check if metadata destination is free (double-checked later)
+            if (!force) {
+                assertFreeFile(metaOutPath);
+            }
+
+            // process lods
             for (let i = 0; i < gacCount; i++) {
                 // run gltfpack
                 const gacIdx = i;
-                logger.debug(`Running gltfpack on argument combo ${i}${splitSuffix}...`);
+                logger.debug(`Running gltfpack on argument combo ${i} ${splitSuffix}...`);
                 const glbBuf = await simplifyModel(tempFolderPath, gltfpackPath, glbPath, gltfpackArgCombos, gacIdx, logger);
 
                 // get lods that depend on this gltfpack argument combo (gac)
@@ -188,16 +192,23 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
                         continue;
                     }
 
-                    logger.debug(`Starting to generate LOD${l}${splitSuffix}...`);
-                    const outName = `${modelName}-part-${p}.LOD${l}.glb`;
-                    await splitSingleLOD(logger, io, outName, outputFolder, splitName, metadata, gltfpackArgCombos, glbBuf, lod, force, textureResizer);
+                    const outName = `${finalPartName}.LOD${l}.glb`;
+                    logger.debug(`Generating LOD${l} ${splitSuffix} ("${outName}"")...`);
+                    await splitSingleLOD(logger, io, outName, outputFolder, metadata, gltfpackArgCombos, glbBuf, lod, force, textureResizer);
                 }
             }
 
-            p++;
+            // write metadata to final destination
+            logger.debug(`Writing metadata file ${splitSuffix} ("${metaOutPath}")...`);
+
+            if (!force) {
+                assertFreeFile(metaOutPath);
+            }
+
+            writeFileSync(metaOutPath, JSON.stringify(metadata));
         });
 
-        if (p === 0) {
+        if (!hadParts) {
             if (splitDepth !== 0) {
                 throw new Error('No nodes at the wanted split depth; did you specify the right split depth?');
             } else {
@@ -209,15 +220,6 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         textureResizer.cleanup();
     }
 
-    // write metadata to final destination
-    const outPath = resolvePath(outputFolder, `${modelName}.metadata.json`);
-    logger.debug(`Writing metadata file ${outPath}...`);
-
-    if (!force) {
-        assertFreeFile(outPath);
-    }
-
-    writeFileSync(outPath, JSON.stringify(metadata));
     logger.debug(`All done`);
 }
 

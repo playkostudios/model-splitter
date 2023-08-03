@@ -28,4 +28,7 @@ export interface SplitModelOptions {
     force?: boolean;
     logger?: ILogger;
     splitDepth?: number;
+    resetPosition?: boolean;
+    resetRotation?: boolean;
+    resetScale?: boolean;
 }

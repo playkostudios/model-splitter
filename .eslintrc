@@ -15,6 +15,7 @@
     "brace-style": "error",
     "curly": "error",
     "indent": "off",
-    "@typescript-eslint/indent": ["error", 4, { "ignoredNodes": ["PropertyDefinition"] }]
+    "@typescript-eslint/indent": ["error", 4, { "ignoredNodes": ["PropertyDefinition"] }],
+    "@typescript-eslint/no-non-null-assertion": "off"
   }
 }

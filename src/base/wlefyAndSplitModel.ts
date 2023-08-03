@@ -3,12 +3,13 @@ import { resample, prune, dequantize, metalRough, tangents, unweld, partition, u
 import { writeFileSync } from 'fs';
 import { generateTangents } from 'mikktspace';
 import { resolve as resolvePath } from 'node:path';
-import { type RootOnlyMetadata, type DepthSplitMetadata, type Metadata } from './output-types';
+import { getBoundingBox } from './getBoundingBox';
+import { type Metadata } from './output-types';
 
 import type { PatchedNodeIO } from './PatchedNodeIO';
 
 type DocTransformerCallback = (splitName: string | null, doc: Document) => Promise<void> | void;
-type ProcessorCallback = (splitName: string | null, glbPath: string) => Promise<void> | void;
+type ProcessorCallback = (splitName: string | null, glbPath: string, metadata: Metadata) => Promise<void> | void;
 
 function traceIdxs(node: Node, idxs: Array<number>) {
     const parent = node.getParentNode();
@@ -40,14 +41,14 @@ function scanNodes(focus: Node, visited: Set<Node>) {
     }
 }
 
-async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: number, origSceneChildIdx: number, origNode: Node, depth: number, targetDepth: number, docTransformerCallback: DocTransformerCallback, metadata: DepthSplitMetadata, takenNames: Set<string>) {
+async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: number, origSceneChildIdx: number, origNode: Node, depth: number, targetDepth: number, docTransformerCallback: DocTransformerCallback, takenNames: Set<string>) {
     if (depth > targetDepth) {
         // XXX just in case, not really necessary
         return;
     } else if (depth < targetDepth) {
         const nextDepth = depth + 1;
         for (const child of origNode.listChildren()) {
-            await extractAtDepth(logger, origDoc, origSceneIdx, origSceneChildIdx, child, nextDepth, targetDepth, docTransformerCallback, metadata, takenNames);
+            await extractAtDepth(logger, origDoc, origSceneIdx, origSceneChildIdx, child, nextDepth, targetDepth, docTransformerCallback, takenNames);
         }
 
         return;
@@ -80,6 +81,11 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
     const sceneChildren = wantedScene.listChildren();
     const target = getTargetByIdx(sceneChildren[origSceneChildIdx], idxs);
 
+    // get world transform of target child
+    const wPos = target.getWorldTranslation();
+    const wRot = target.getWorldRotation();
+    const wScale = target.getWorldScale();
+
     // move child to top of hirearchy
     target.detach();
     const nodesToKeep = new Set<Node>();
@@ -93,10 +99,10 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
 
     wantedScene.addChild(target);
 
-    // make sure child has no local transform
-    target.setTranslation([0,0,0]);
-    target.setRotation([0,0,0,1]);
-    target.setScale([1,1,1]);
+    // keep world transform as local transform
+    target.setTranslation(wPos);
+    target.setRotation(wRot);
+    target.setScale(wScale);
 
     // trim out unused resources (prune)
     doc.transform(
@@ -110,15 +116,7 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
         unpartition(),
     );
 
-    // add metadata and input
-    metadata.partLods[origSplitName] = {
-        lods: [],
-        transform: origNode.getWorldMatrix(),
-        translation: origNode.getWorldTranslation(),
-        rotation: origNode.getWorldRotation(),
-        scale: origNode.getWorldScale(),
-    };
-
+    // add input
     let splitName = origSplitName;
     if (takenNames.has(splitName)) {
         for (let i = 2;; i++) {
@@ -138,13 +136,30 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
     await docTransformerCallback(splitName, doc);
 }
 
-export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inputModelPath: string, tempFolderPath: string, splitDepth: number, metadata: Metadata, processorCallback: ProcessorCallback): Promise<void> {
+export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inputModelPath: string, tempFolderPath: string, splitDepth: number, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, processorCallback: ProcessorCallback): Promise<void> {
     // read model
     const origDoc = await io.read(inputModelPath);
     const takenNames = new Set<string>();
     let i = 0;
     const docTransformerCallback: DocTransformerCallback = async (splitName: string | null, doc: Document) => {
         logger.debug('Converting to format usable by Wonderland Engine...');
+
+        // optionally reset parts of root node transform
+        if (resetPosition || resetRotation || resetScale) {
+            for (const scene of doc.getRoot().listScenes()) {
+                for (const child of scene.listChildren()) {
+                    if (resetPosition) {
+                        child.setTranslation([0,0,0]);
+                    }
+                    if (resetRotation) {
+                        child.setRotation([0,0,0,1]);
+                    }
+                    if (resetScale) {
+                        child.setScale([1,1,1]);
+                    }
+                }
+            }
+        }
 
         // get rid of extensions not supported by wonderland engine and do some
         // extra optimizations
@@ -157,19 +172,21 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
             prune(),
         );
 
+        // generate lod-less metadata (only bounding box data for now)
+        const metadata: Metadata = {
+            lods: [],
+            bounds: getBoundingBox(doc),
+        };
+
         // done
         const outPath = resolvePath(tempFolderPath, `intermediary-model-${i++}.glb`);
         writeFileSync(outPath, await io.writeBinary(doc));
-        await processorCallback(splitName, outPath);
+        await processorCallback(splitName, outPath, metadata);
     }
 
     if (splitDepth === 0) {
-        const roMetadata = metadata as RootOnlyMetadata;
-        roMetadata.lods = [];
         await docTransformerCallback(null, origDoc);
     } else {
-        const dsMetadata = metadata as DepthSplitMetadata;
-        dsMetadata.partLods = {};
         const root = origDoc.getRoot();
         const scenes = root.listScenes();
         const sceneCount = scenes.length;
@@ -181,7 +198,7 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
             const childCount = children.length;
             for (let c = 0; c < childCount; c++) {
                 const child = children[c];
-                await extractAtDepth(logger, origDoc, s, c, child, 1, splitDepth, docTransformerCallback, dsMetadata, takenNames);
+                await extractAtDepth(logger, origDoc, s, c, child, 1, splitDepth, docTransformerCallback, takenNames);
             }
         }
     }
