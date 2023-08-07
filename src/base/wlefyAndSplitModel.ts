@@ -240,8 +240,6 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
             dedup(),
         );
 
-        writeFileSync('intermediate-test.glb', await io.writeBinary(origDoc));
-
         // split document into multiple sub-documents with a child per document
         const root = origDoc.getRoot();
         const scenes = root.listScenes();
