@@ -32,6 +32,9 @@ async function main() {
     let logLevel: Verbosity | null = null;
     const lods: LODConfigList = [];
     let splitDepth = 0;
+    let resetPosition = false;
+    let resetRotation = false;
+    let resetScale = false;
 
     try {
         const cliArgs = process.argv.slice(2);
@@ -109,6 +112,12 @@ async function main() {
                 expectGltfpackPath = true;
             } else if (arg === '--split-depth') {
                 expectSplitDepth = true;
+            } else if (arg === '--reset-position') {
+                resetPosition = true;
+            } else if (arg === '--reset-rotation') {
+                resetRotation = true;
+            } else if (arg === '--reset-scale') {
+                resetScale = true;
             } else {
                 if (arg.startsWith('--')) {
                     throw new Error(`Unknown option: ${arg}`);
@@ -204,7 +213,7 @@ async function main() {
             defaultEmbedTextures, defaultTextureResizing, force,
             defaultOptimizeSceneHierarchy, defaultMergeMaterials,
             defaultAggressive, defaultBasisUniversal, gltfpackPath, logger,
-            splitDepth
+            splitDepth, resetPosition, resetRotation, resetScale
         });
     } catch(err) {
         if (err instanceof CollisionError) {

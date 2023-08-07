@@ -1,6 +1,7 @@
 import { type Node, type Document, type ILogger } from '@gltf-transform/core';
-import { resample, prune, dequantize, metalRough, tangents, unweld, partition, unpartition } from '@gltf-transform/functions';
+import { resample, prune, dequantize, metalRough, tangents, unweld, partition, unpartition, dedup } from '@gltf-transform/functions';
 import { writeFileSync } from 'fs';
+import { quat, vec3 } from 'gl-matrix';
 import { generateTangents } from 'mikktspace';
 import { resolve as resolvePath } from 'node:path';
 import { getBoundingBox } from './getBoundingBox';
@@ -11,28 +12,6 @@ import type { PatchedNodeIO } from './PatchedNodeIO';
 type DocTransformerCallback = (splitName: string | null, doc: Document) => Promise<void> | void;
 type ProcessorCallback = (splitName: string | null, glbPath: string, metadata: Metadata) => Promise<void> | void;
 
-function traceIdxs(node: Node, idxs: Array<number>) {
-    const parent = node.getParentNode();
-    if (parent) {
-        idxs.push(parent.listChildren().indexOf(node));
-        traceIdxs(parent, idxs);
-    }
-}
-
-function getTargetByIdx(focus: Node, idxs: Array<number>): Node {
-    const nextIdx = idxs.pop();
-    if (nextIdx === undefined) {
-        return focus;
-    } else {
-        const children = focus.listChildren();
-        const child = children[nextIdx];
-        if (child === undefined) {
-            throw new Error(`Could not find child at index ${nextIdx}`);
-        }
-        return getTargetByIdx(child, idxs);
-    }
-}
-
 function scanNodes(focus: Node, visited: Set<Node>) {
     visited.add(focus);
 
@@ -41,14 +20,60 @@ function scanNodes(focus: Node, visited: Set<Node>) {
     }
 }
 
-async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: number, origSceneChildIdx: number, origNode: Node, depth: number, targetDepth: number, docTransformerCallback: DocTransformerCallback, takenNames: Set<string>) {
+const IS_SUBSCENE_EQUAL_SKIP = new Set(['name', 'translation', 'rotation', 'scale', 'children']);
+
+function isSubsceneEqual(aNode: Node, bNode: Node, ignoreRootName: boolean, ignoreRootPos: boolean, ignoreRootRot: boolean, ignoreRootScale: boolean): boolean {
+    // compare name
+    if (!ignoreRootName && aNode.getName() !== bNode.getName()) {
+        return false;
+    }
+
+    // compare number of children
+    const aNodeChildren = aNode.listChildren();
+    const bNodeChildren = bNode.listChildren();
+    const aNodeChildCount = aNodeChildren.length;
+    const bNodeChildCount = bNodeChildren.length;
+
+    if (aNodeChildCount !== bNodeChildCount) {
+        return false;
+    }
+
+    // compare transformation
+    if (!ignoreRootPos && !vec3.equals(aNode.getTranslation(), bNode.getTranslation())) {
+        return false;
+    }
+
+    if (!ignoreRootRot && !quat.equals(aNode.getRotation(), bNode.getRotation())) {
+        return false;
+    }
+
+    if (!ignoreRootScale && !vec3.equals(aNode.getScale(), bNode.getScale())) {
+        return false;
+    }
+
+    // compare everything else except children
+    if (!aNode.equals(bNode, IS_SUBSCENE_EQUAL_SKIP)) {
+        return false;
+    }
+
+    // compare children
+    for (let i = 0; i < aNodeChildCount; i++) {
+        if (!aNodeChildren[i].equals(bNodeChildren[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: number, origNode: Node, depth: number, targetDepth: number, docTransformerCallback: DocTransformerCallback, takenNames: Set<string>, splitNodeIdxs: Array<number>, dedupIgnoreRootPos: boolean, dedupIgnoreRootRot: boolean, dedupIgnoreRootScale: boolean) {
     if (depth > targetDepth) {
         // XXX just in case, not really necessary
         return;
     } else if (depth < targetDepth) {
         const nextDepth = depth + 1;
         for (const child of origNode.listChildren()) {
-            await extractAtDepth(logger, origDoc, origSceneIdx, origSceneChildIdx, child, nextDepth, targetDepth, docTransformerCallback, takenNames);
+            await extractAtDepth(logger, origDoc, origSceneIdx, child, nextDepth, targetDepth, docTransformerCallback, takenNames, splitNodeIdxs, dedupIgnoreRootPos, dedupIgnoreRootRot, dedupIgnoreRootScale);
         }
 
         return;
@@ -56,11 +81,36 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
 
     // we are at the target depth, split here
     const origSplitName = origNode.getName();
-    logger.debug(`Found wanted node named "${origSplitName}" at depth ${depth}, splitting...`);
+    logger.debug(`Found wanted node named "${origSplitName}" at depth ${depth}, checking if not a duplicate...`);
+
+    // check if child is a duplicate of another child
+    const origRoot = origDoc.getRoot();
+    const origNodes = origRoot.listNodes();
+    const origNodeIdx = origNodes.indexOf(origNode);
+    if (origNodeIdx < 0) {
+        throw new Error('Node not found in node list; this is a bug, please report it');
+    }
+
+    let isDupe = false;
+    for (const otherNodeIdx of splitNodeIdxs) {
+        const otherNode = origNodes[otherNodeIdx];
+
+        if (isSubsceneEqual(origNode, otherNode, true, dedupIgnoreRootPos, dedupIgnoreRootRot, dedupIgnoreRootScale)) {
+            isDupe = true;
+            break;
+        }
+    }
+
+    if (isDupe) {
+        logger.debug('Node is a duplicate, skipped');
+        return;
+    }
 
     // XXX i know this isn't the most efficient way to do this, but manually
     // copying PART OF a document is pretty hard. instead, i'm going to clone
     // the whole document, and trim out the parts i don't need
+    logger.debug(`Not a duplicate, splitting...`);
+    splitNodeIdxs.push(origNodeIdx);
     const doc = origDoc.clone();
     const root = doc.getRoot();
 
@@ -76,10 +126,8 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
     root.setDefaultScene(wantedScene);
 
     // find child in cloned scene
-    const idxs: Array<number> = [];
-    traceIdxs(origNode, idxs);
-    const sceneChildren = wantedScene.listChildren();
-    const target = getTargetByIdx(sceneChildren[origSceneChildIdx], idxs);
+    const nodes = root.listNodes();
+    const target = nodes[origNodeIdx];
 
     // get world transform of target child
     const wPos = target.getWorldTranslation();
@@ -91,7 +139,7 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
     const nodesToKeep = new Set<Node>();
     scanNodes(target, nodesToKeep);
 
-    for (const child of root.listNodes()) {
+    for (const child of nodes) {
         if (!nodesToKeep.has(child)) {
             child.dispose();
         }
@@ -187,18 +235,22 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
     if (splitDepth === 0) {
         await docTransformerCallback(null, origDoc);
     } else {
+        // deduplicate document so that duplicate child detection doesn't fail
+        await origDoc.transform(
+            dedup(),
+        );
+
+        writeFileSync('intermediate-test.glb', await io.writeBinary(origDoc));
+
+        // split document into multiple sub-documents with a child per document
         const root = origDoc.getRoot();
         const scenes = root.listScenes();
         const sceneCount = scenes.length;
+        const splitNodeIdxs = new Array<number>();
         for (let s = 0; s < sceneCount; s++) {
             const scene = scenes[s];
-            // XXX not sure if scenes can even have multiple children, but i'm
-            // not taking any chances
-            const children = scene.listChildren();
-            const childCount = children.length;
-            for (let c = 0; c < childCount; c++) {
-                const child = children[c];
-                await extractAtDepth(logger, origDoc, s, c, child, 1, splitDepth, docTransformerCallback, takenNames);
+            for (const child of scene.listChildren()) {
+                await extractAtDepth(logger, origDoc, s, child, 1, splitDepth, docTransformerCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale);
             }
         }
     }

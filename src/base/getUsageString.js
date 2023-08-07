@@ -31,6 +31,9 @@ Options:
 - ${decorateArg('--texture-size <percentage or target side length>')}: The texture size to use for each generated LOD if it's not specified in the LOD arguments
 - ${decorateArg('--basisu <disabled, uastc, etc1s>')}: Should textures be compressed with basisu? Can be overridden per LOD. Disabled by default
 - ${decorateArg('--split-depth <depth>')}: If set to an integer greater than 0, then the model will be split into multiple ones at the child nodes at the given depth. For example, a depth of 1 indicates children, 2 grandchildren, etc... A split depth of 1 would create multiple model files per LOD with each child of the root, instead of a single model file per LOD with the root of the scene
+- ${decorateArg('--reset-position')}: Reset position of root node, or each child node if splitting by depth
+- ${decorateArg('--reset-rotation')}: Reset rotation of root node, or each child node if splitting by depth
+- ${decorateArg('--reset-scale')}: Reset scale of root node, or each child node if splitting by depth
 - ${decorateArg('--gltfpack-path <gltfpack bin path>')}: Path to gltfpack binary. If none is specified, then the binary is assumed to be accessible via the PATH variable (${defaultGltfpackPath})
 - ${decorateArg('--log-level <log level>')}: The log level to use. Can be: 'none', 'error', 'warning', 'log' or 'debug'
 - ${decorateArg('--version')}: Print version and exit
