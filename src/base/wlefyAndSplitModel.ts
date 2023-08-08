@@ -9,8 +9,10 @@ import { type Metadata } from './output-types';
 
 import type { PatchedNodeIO } from './PatchedNodeIO';
 
-type DocTransformerCallback = (splitName: string | null, doc: Document) => Promise<void> | void;
-type ProcessorCallback = (splitName: string | null, glbPath: string, metadata: Metadata) => Promise<void> | void;
+type DocTransformerCallback = (splitName: string | null, doc: Document) => Promise<number>;
+type ProcessorCallback = (splitName: string | null, glbPath: string, metadata: Metadata) => Promise<number>;
+type InstanceCallback = (sourceID: number, instanceName: string, position: vec3, rotation: quat, scale: vec3) => void;
+type SplitNodeIdxList = Array<[nodeIdx: number, sourceID: number]>;
 
 function scanNodes(focus: Node, visited: Set<Node>) {
     visited.add(focus);
@@ -66,14 +68,39 @@ function isSubsceneEqual(aNode: Node, bNode: Node, ignoreRootName: boolean, igno
     return true;
 }
 
-async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: number, origNode: Node, depth: number, targetDepth: number, docTransformerCallback: DocTransformerCallback, takenNames: Set<string>, splitNodeIdxs: Array<number>, dedupIgnoreRootPos: boolean, dedupIgnoreRootRot: boolean, dedupIgnoreRootScale: boolean) {
+function makeInstanceFromNode(instanceCallback: InstanceCallback, sourceID: number, origNode: Node, resetPosition: boolean, resetRotation: boolean, resetScale: boolean) {
+    let position: vec3;
+    if (resetPosition) {
+        position = origNode.getWorldTranslation();
+    } else {
+        position = [0, 0, 0];
+    }
+
+    let rotation: quat;
+    if (resetRotation) {
+        rotation = origNode.getWorldRotation();
+    } else {
+        rotation = [0, 0, 0, 1];
+    }
+
+    let scale: vec3;
+    if (resetScale) {
+        scale = origNode.getWorldScale();
+    } else {
+        scale = [1, 1, 1];
+    }
+
+    instanceCallback(sourceID, origNode.getName(), position, rotation, scale);
+}
+
+async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: number, origNode: Node, depth: number, targetDepth: number, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, takenNames: Set<string>, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean) {
     if (depth > targetDepth) {
         // XXX just in case, not really necessary
         return;
     } else if (depth < targetDepth) {
         const nextDepth = depth + 1;
         for (const child of origNode.listChildren()) {
-            await extractAtDepth(logger, origDoc, origSceneIdx, child, nextDepth, targetDepth, docTransformerCallback, takenNames, splitNodeIdxs, dedupIgnoreRootPos, dedupIgnoreRootRot, dedupIgnoreRootScale);
+            await extractAtDepth(logger, origDoc, origSceneIdx, child, nextDepth, targetDepth, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale);
         }
 
         return;
@@ -92,11 +119,12 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
     }
 
     let isDupe = false;
-    for (const otherNodeIdx of splitNodeIdxs) {
+    for (const [otherNodeIdx, sourceID] of splitNodeIdxs) {
         const otherNode = origNodes[otherNodeIdx];
 
-        if (isSubsceneEqual(origNode, otherNode, true, dedupIgnoreRootPos, dedupIgnoreRootRot, dedupIgnoreRootScale)) {
+        if (isSubsceneEqual(origNode, otherNode, true, resetPosition, resetRotation, resetScale)) {
             isDupe = true;
+            makeInstanceFromNode(instanceCallback, sourceID, origNode, resetPosition, resetRotation, resetScale);
             break;
         }
     }
@@ -110,7 +138,6 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
     // copying PART OF a document is pretty hard. instead, i'm going to clone
     // the whole document, and trim out the parts i don't need
     logger.debug(`Not a duplicate, splitting...`);
-    splitNodeIdxs.push(origNodeIdx);
     const doc = origDoc.clone();
     const root = doc.getRoot();
 
@@ -181,10 +208,12 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
 
     logger.debug(`Done splitting`);
 
-    await docTransformerCallback(splitName, doc);
+    const sourceID = await docTransformerCallback(splitName, doc);
+    splitNodeIdxs.push([origNodeIdx, sourceID]);
+    makeInstanceFromNode(instanceCallback, sourceID, origNode, resetPosition, resetRotation, resetScale);
 }
 
-export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inputModelPath: string, tempFolderPath: string, splitDepth: number, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, processorCallback: ProcessorCallback): Promise<void> {
+export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inputModelPath: string, tempFolderPath: string, splitDepth: number, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, processorCallback: ProcessorCallback, instanceCallback: InstanceCallback): Promise<void> {
     // read model
     const origDoc = await io.read(inputModelPath);
     const takenNames = new Set<string>();
@@ -229,11 +258,12 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
         // done
         const outPath = resolvePath(tempFolderPath, `intermediary-model-${i++}.glb`);
         writeFileSync(outPath, await io.writeBinary(doc));
-        await processorCallback(splitName, outPath, metadata);
+        return await processorCallback(splitName, outPath, metadata);
     }
 
     if (splitDepth === 0) {
-        await docTransformerCallback(null, origDoc);
+        const sourceID = await docTransformerCallback(null, origDoc);
+        instanceCallback(sourceID, origDoc.getRoot().getDefaultScene()?.getName() ?? 'root', [0,0,0], [0,0,0,1], [1,1,1]);
     } else {
         // deduplicate document so that duplicate child detection doesn't fail
         await origDoc.transform(
@@ -244,11 +274,11 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
         const root = origDoc.getRoot();
         const scenes = root.listScenes();
         const sceneCount = scenes.length;
-        const splitNodeIdxs = new Array<number>();
+        const splitNodeIdxs: SplitNodeIdxList = [];
         for (let s = 0; s < sceneCount; s++) {
             const scene = scenes[s];
             for (const child of scene.listChildren()) {
-                await extractAtDepth(logger, origDoc, s, child, 1, splitDepth, docTransformerCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale);
+                await extractAtDepth(logger, origDoc, s, child, 1, splitDepth, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale);
             }
         }
     }

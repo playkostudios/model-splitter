@@ -1,6 +1,6 @@
 import { loadImage } from './loadImage';
 import { EXTENSION_NAME } from '../base/extension-name';
-import { Texture } from '@wonderlandengine/api';
+import { type SceneAppendParameters, Texture } from '@wonderlandengine/api';
 
 import { Object3D } from '@wonderlandengine/api';
 import type { Material, MeshComponent, WonderlandEngine } from '@wonderlandengine/api';
@@ -20,24 +20,44 @@ export class LODModelLoader {
         }
     }
 
-    async loadMetadata(metadataURL: string): Promise<Metadata> {
-        // fetch metadata
-        if (metadataURL === '') {
-            throw new Error('No metadata URL specified');
+    protected async downloadJSON(file: string): Promise<unknown> {
+        if (file === '') {
+            throw new Error('No file path specified');
         }
 
-        const url = new URL(metadataURL, this.cdnRoot);
-        const reponse = await fetch(url);
+        const urlAbs = new URL(file, this.cdnRoot);
+        const reponse = await fetch(urlAbs);
         if (!reponse.ok) {
-            throw new Error('Could not fetch metadata; not OK');
+            throw new Error('Could not fetch JSON; not OK');
         }
 
-        const metadata = await reponse.json();
-        if (!(metadata.lods || metadata.partLods)) {
+        return await reponse.json();
+    }
+
+    protected async sceneAppend(file: string, options?: Partial<SceneAppendParameters>) {
+        const modelURL = new URL(file, this.cdnRoot);
+        return await this.engine.scene.append(modelURL.href, options);
+    }
+
+    protected async loadTextureSource(file: string): Promise<HTMLImageElement | HTMLVideoElement | HTMLCanvasElement> {
+        return await loadImage(file, this.cdnRoot, this.timeout);
+    }
+
+    validateMetadata(obj: unknown): Metadata {
+        if (obj === null || typeof obj !== 'object') {
+            throw new Error('Downloaded metadata is not a JSON object');
+        }
+
+        // TODO maybe do stricter validation here. maybe check against schema?
+        if (!('lods' in obj) || !obj.lods) {
             throw new Error('Invalid metadata file');
         }
 
-        return metadata;
+        return obj as Metadata;
+    }
+
+    async loadMetadata(metadataURL: string): Promise<Metadata> {
+        return this.validateMetadata(await this.downloadJSON(metadataURL));
     }
 
     async loadFromLODArray(lods: Array<LOD>, lodLevel: number, avoidPBR: boolean, parent: Object3D | null = null, phongOpaqueTemplateMaterial?: Material, phongTransparentTemplateMaterial?: Material, pbrOpaqueTemplateMaterial?: Material, pbrTransparentTemplateMaterial?: Material) {
@@ -53,8 +73,7 @@ export class LODModelLoader {
         }
 
         // load model
-        const modelURL = new URL(lods[lodLevel].file, this.cdnRoot);
-        const result = await this.engine.scene.append(modelURL.href, { loadGltfExtensions: true });
+        const result = await this.sceneAppend(lods[lodLevel].file, { loadGltfExtensions: true });
 
         if (result === null) {
             throw new Error('Failed to load model');
@@ -139,7 +158,7 @@ export class LODModelLoader {
 
         let needsRelease = false;
         try {
-            let image: HTMLImageElement | HTMLCanvasElement;
+            let image: HTMLImageElement | HTMLCanvasElement | HTMLVideoElement;
             if (texSrc.toLowerCase().endsWith('.ktx2')) {
                 if (this.basisLoader === undefined) {
                     throw new Error("Can't load KTX2 image; ModelSplitterBasisLoader instance (this.basisLoader) not set in LODModelLoader");
@@ -148,7 +167,7 @@ export class LODModelLoader {
                 image = await this.basisLoader.loadFromUrl(texSrc, this.cdnRoot);
                 needsRelease = true;
             } else {
-                image = await loadImage(texSrc, this.cdnRoot, this.timeout);
+                image = await this.loadTextureSource(texSrc);
             }
 
             texture = new Texture(this.engine, image);

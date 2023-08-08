@@ -1,3 +1,5 @@
+import { type vec3, type quat } from 'gl-matrix';
+
 export type ConvertedMaterialTextureName = 'emissiveTexture' | 'normalTexture' | 'albedoTexture' | 'roughnessMetallicTexture';
 export type ConvertedMaterialUniformName = ConvertedMaterialTextureName | 'albedoFactor' | 'emissiveFactor' | 'alphaMaskThreshold' | 'metallicFactor' | 'roughnessFactor';
 
@@ -26,4 +28,18 @@ export interface LOD {
     file: string,
     lodRatio: number,
     bytes: number,
+}
+
+export interface InstanceGroup {
+    name: string,
+    sources: Array<string>,
+    instances: Array<Instance>,
+}
+
+export interface Instance {
+    name: string,
+    source: number,
+    position: vec3,
+    rotation: quat,
+    scale: vec3,
 }

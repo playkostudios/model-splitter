@@ -305,6 +305,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
     const resetPositionInput = getElement<HTMLInputElement>('reset-position-input');
     const resetRotationInput = getElement<HTMLInputElement>('reset-rotation-input');
     const resetScaleInput = getElement<HTMLInputElement>('reset-scale-input');
+    const createInstanceGroupInput = getElement<HTMLInputElement>('create-instance-group-input');
 
     const defaultTextureSizeInput = getElement<HTMLInputElement>('default-texture-size-input');
     let lastValidDefaultTextureSize = defaultTextureSizeInput.value;
@@ -414,6 +415,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
             const resetPosition = resetPositionInput.checked;
             const resetRotation = resetRotationInput.checked;
             const resetScale = resetScaleInput.checked;
+            const createInstanceGroup = createInstanceGroupInput.checked;
 
             if (lodList.children.length <= LOD_ROW_ELEM_OFFSET) {
                 throw new Error('Nothing to do; no LODs added');
@@ -489,7 +491,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                     defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                     defaultAggressive, defaultBasisUniversal, gltfpackPath,
                     splitDepth, resetPosition, resetRotation, resetScale,
-                    force
+                    createInstanceGroup, force
                 }, worker);
             } catch(err: unknown) {
                 assertCollisionError(err);
@@ -500,7 +502,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                         defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                         defaultAggressive, defaultBasisUniversal, gltfpackPath,
                         splitDepth, resetPosition, resetRotation, resetScale,
-                        force: true
+                        createInstanceGroup, force: true
                     }, worker);
                 } else {
                     throw err;

@@ -9,103 +9,111 @@
 <body>
     <p id="loading-msg">Loading...</p>
     <div id="main" style="display: none">
-        <p>Input model:</p>
-        <div class="picker-input-row">
-            <input type="file" id="input-model-picker" class="hidden" />
-            <input type="text" id="input-model-input" class="expand" />
-            <button id="input-model-button">Pick...</button>
-        </div>
-        <p>Output folder:</p>
-        <div class="picker-input-row">
-            <input type="file" id="output-folder-picker" class="hidden" nwdirectory nwdirectorydesc="Pick output folder..." />
-            <input type="text" id="output-folder-input" class="expand" />
-            <button id="output-folder-button">Pick...</button>
-        </div>
-        <p>gltfpack binary:</p>
-        <div class="picker-input-row" title="Path to gltfpack binary. If not specified, then gltfpack is assumed to be installed globally, and is accessed via the PATH variable">
-            <input type="file" id="gltfpack-bin-picker" class="hidden" />
-            <input type="text" id="gltfpack-bin-input" class="expand" />
-            <button id="gltfpack-bin-button">Pick...</button>
-        </div>
-        <div class="input-row">
-            <label for="force-input" class="expand">Replace existing files</label>
-            <input type="checkbox" id="force-input" />
-        </div>
-        <div class="input-row" title="If enabled, all model files will have their textures stored inside the model instead of in a separate file by default, which is less storage-efficient">
-            <label for="embed-textures-input" class="expand">Embed textures by default</label>
-            <input type="checkbox" id="embed-textures-input" />
-        </div>
-        <div class="input-row" title="This is equivalent to the gltfpack -kn option if unchecked. Keeping the scene hierarchy may result in high draw calls">
-            <label for="optimize-scene-hierarchy-input" class="expand">Optimize scene hierarchy by default</label>
-            <input type="checkbox" id="optimize-scene-hierarchy-input" checked />
-        </div>
-        <div class="input-row" title="This is equivalent to the gltfpack -km option if unchecked">
-            <label for="merge-materials-input" class="expand">Merge materials by default</label>
-            <input type="checkbox" id="merge-materials-input" checked />
-        </div>
-        <div class="input-row" title="If enabled, then mesh simplification will disregard quality">
-            <label for="aggressive-input" class="expand">Aggressive by default</label>
-            <input type="checkbox" id="aggressive-input" />
-        </div>
-        <div class="input-row" title="If enabled, then all textures will be super-compressed with basis universal. UASTC provides lower compression but higher quality, while ETC1S provides higher compression, but lower quality">
-            <label for="basis-universal-input" class="expand">Default Basis Universal mode</label>
-            <select id="basis-universal-input">
-                <option value="disabled" selected>Disabled</option>
-                <option value="uastc">UASTC</option>
-                <option value="etc1s">ETC1S</option>
-            </select>
-        </div>
-        <div class="input-row" title="If set to an integer greater than 0, then the model will be split into multiple ones at the child nodes at the given depth. For example, a depth of 1 indicates children, 2 grandchildren, etc...">
-            <label for="split-depth-input" class="expand">Split depth</label>
-            <input type="number" id="split-depth-input" min="0" value="0" />
-        </div>
-        <div class="input-row">
-            <label for="reset-position-input" class="expand">Reset the position of each child of all scenes</label>
-            <input type="checkbox" id="reset-position-input" />
-        </div>
-        <div class="input-row">
-            <label for="reset-rotation-input" class="expand">Reset the rotation of each child of all scenes</label>
-            <input type="checkbox" id="reset-rotation-input" />
-        </div>
-        <div class="input-row">
-            <label for="reset-scale-input" class="expand">Reset the scale of each child of all scenes</label>
-            <input type="checkbox" id="reset-scale-input" />
-        </div>
-        <div class="input-row" title="The resizing to apply to all textures in the model by default. Format: 'W,H', 'WxH', 'L', 'W,H!', 'WxH!' or 'L!' for specific widths, heights or lengths, and 'W,H%', 'WxH%' or 'L%' for percentage widths, heights or lengths">
-            <label for="default-texture-size-input" class="expand">Default texture size</label>
-            <input type="text" id="default-texture-size-input" value="100%" />
-        </div>
-        <fieldset>
-            <legend>Levels of detail:</legend>
-            <div class="space-below" class="right-align-row">
-                <button id="add-lod-button">Add new LOD</button>
+        <div id="options-view">
+            <p>Input model:</p>
+            <div class="picker-input-row">
+                <input type="file" id="input-model-picker" class="hidden" />
+                <input type="text" id="input-model-input" class="expand" />
+                <button id="input-model-button">Pick...</button>
             </div>
-            <p id="lod-list-help">No LODs added yet. Click "Add LOD"</p>
-            <div id="lod-list" style="display: none">
-                <span class="lod-list-header">LOD</span>
-                <span class="lod-list-header" title="The mesh quality as a percentage. If 100%, then the mesh will be optimized without a loss of quality. If 50%, then the mesh will be optimized with at most half of the quality lost">Mesh quality</span>
-                <span class="lod-list-header" title="The resizing to apply to all textures in the model. Format: 'W,H', 'WxH', 'L', 'W,H!', 'WxH!' or 'L!' for specific widths, heights or lengths, and 'W,H%', 'WxH%' or 'L%' for percentage widths, heights or lengths">Texture size</span>
-                <span class="lod-list-header" title="If set to 'embedded', then the model file will have its textures stored inside the model instead of in a separate file, which is less storage-efficient">Textures</span>
-                <span class="lod-list-header" title="This is equivalent to the gltfpack -kn option if set to 'keep'. Keeping the scene hierarchy may result in high draw calls">Scene</span>
-                <span class="lod-list-header" title="This is equivalent to the gltfpack -km option if set to 'keep'">Materials</span>
-                <span class="lod-list-header" title="If set tp 'aggressive', then mesh simplification will disregard quality">Aggressivity</span>
-                <span class="lod-list-header" title="If enabled, then all textures will be super-compressed with basis universal. UASTC provides lower compression but higher quality, while ETC1S provides higher compression, but lower quality">Basis Universal</span>
+            <p>Output folder:</p>
+            <div class="picker-input-row">
+                <input type="file" id="output-folder-picker" class="hidden" nwdirectory nwdirectorydesc="Pick output folder..." />
+                <input type="text" id="output-folder-input" class="expand" />
+                <button id="output-folder-button">Pick...</button>
             </div>
-        </fieldset>
-        <div class="right-align-row">
-            <label for="log-level">Log level:</label>
-            <select id="log-level">
-                <option value="error">Errors only</option>
-                <option value="warning">Errors and warnings</option>
-                <option value="info" selected>Normal</option>
-                <option value="debug">Verbose</option>
-            </select>
-            <button id="clear-text-output-button">Clear text output</button>
-            <button id="toggle-text-output-button">Show text output</button>
-            <button id="split-button" disabled>Split model</button>
+            <p>gltfpack binary:</p>
+            <div class="picker-input-row" title="Path to gltfpack binary. If not specified, then gltfpack is assumed to be installed globally, and is accessed via the PATH variable">
+                <input type="file" id="gltfpack-bin-picker" class="hidden" />
+                <input type="text" id="gltfpack-bin-input" class="expand" />
+                <button id="gltfpack-bin-button">Pick...</button>
+            </div>
+            <div class="input-row">
+                <label for="force-input" class="expand">Replace existing files</label>
+                <input type="checkbox" id="force-input" />
+            </div>
+            <div class="input-row" title="If enabled, all model files will have their textures stored inside the model instead of in a separate file by default, which is less storage-efficient">
+                <label for="embed-textures-input" class="expand">Embed textures by default</label>
+                <input type="checkbox" id="embed-textures-input" />
+            </div>
+            <div class="input-row" title="This is equivalent to the gltfpack -kn option if unchecked. Keeping the scene hierarchy may result in high draw calls">
+                <label for="optimize-scene-hierarchy-input" class="expand">Optimize scene hierarchy by default</label>
+                <input type="checkbox" id="optimize-scene-hierarchy-input" checked />
+            </div>
+            <div class="input-row" title="This is equivalent to the gltfpack -km option if unchecked">
+                <label for="merge-materials-input" class="expand">Merge materials by default</label>
+                <input type="checkbox" id="merge-materials-input" checked />
+            </div>
+            <div class="input-row" title="If enabled, then mesh simplification will disregard quality">
+                <label for="aggressive-input" class="expand">Aggressive by default</label>
+                <input type="checkbox" id="aggressive-input" />
+            </div>
+            <div class="input-row" title="If enabled, then all textures will be super-compressed with basis universal. UASTC provides lower compression but higher quality, while ETC1S provides higher compression, but lower quality">
+                <label for="basis-universal-input" class="expand">Default Basis Universal mode</label>
+                <select id="basis-universal-input">
+                    <option value="disabled" selected>Disabled</option>
+                    <option value="uastc">UASTC</option>
+                    <option value="etc1s">ETC1S</option>
+                </select>
+            </div>
+            <div class="input-row" title="If set to an integer greater than 0, then the model will be split into multiple ones at the child nodes at the given depth. For example, a depth of 1 indicates children, 2 grandchildren, etc...">
+                <label for="split-depth-input" class="expand">Split depth</label>
+                <input type="number" id="split-depth-input" min="0" value="0" />
+            </div>
+            <div class="input-row">
+                <label for="reset-position-input" class="expand">Reset the position of each child of all scenes</label>
+                <input type="checkbox" id="reset-position-input" />
+            </div>
+            <div class="input-row">
+                <label for="reset-rotation-input" class="expand">Reset the rotation of each child of all scenes</label>
+                <input type="checkbox" id="reset-rotation-input" />
+            </div>
+            <div class="input-row">
+                <label for="reset-scale-input" class="expand">Reset the scale of each child of all scenes</label>
+                <input type="checkbox" id="reset-scale-input" />
+            </div>
+            <div class="input-row" title="Create a separate instance group metadata file. This is especially useful for depth-split models which reset child transforms, as this file will contain a scene with references to all the split models, and their placements in the scene">
+                <label for="create-instance-group-input" class="expand">Create instance group metadata</label>
+                <input type="checkbox" id="create-instance-group-input" />
+            </div>
+            <div class="input-row" title="The resizing to apply to all textures in the model by default. Format: 'W,H', 'WxH', 'L', 'W,H!', 'WxH!' or 'L!' for specific widths, heights or lengths, and 'W,H%', 'WxH%' or 'L%' for percentage widths, heights or lengths">
+                <label for="default-texture-size-input" class="expand">Default texture size</label>
+                <input type="text" id="default-texture-size-input" value="100%" />
+            </div>
+            <fieldset>
+                <legend>Levels of detail:</legend>
+                <div class="space-below" class="right-align-row">
+                    <button id="add-lod-button">Add new LOD</button>
+                </div>
+                <p id="lod-list-help">No LODs added yet. Click "Add LOD"</p>
+                <div id="lod-list" style="display: none">
+                    <span class="lod-list-header">LOD</span>
+                    <span class="lod-list-header" title="The mesh quality as a percentage. If 100%, then the mesh will be optimized without a loss of quality. If 50%, then the mesh will be optimized with at most half of the quality lost">Mesh quality</span>
+                    <span class="lod-list-header" title="The resizing to apply to all textures in the model. Format: 'W,H', 'WxH', 'L', 'W,H!', 'WxH!' or 'L!' for specific widths, heights or lengths, and 'W,H%', 'WxH%' or 'L%' for percentage widths, heights or lengths">Texture size</span>
+                    <span class="lod-list-header" title="If set to 'embedded', then the model file will have its textures stored inside the model instead of in a separate file, which is less storage-efficient">Textures</span>
+                    <span class="lod-list-header" title="This is equivalent to the gltfpack -kn option if set to 'keep'. Keeping the scene hierarchy may result in high draw calls">Scene</span>
+                    <span class="lod-list-header" title="This is equivalent to the gltfpack -km option if set to 'keep'">Materials</span>
+                    <span class="lod-list-header" title="If set tp 'aggressive', then mesh simplification will disregard quality">Aggressivity</span>
+                    <span class="lod-list-header" title="If enabled, then all textures will be super-compressed with basis universal. UASTC provides lower compression but higher quality, while ETC1S provides higher compression, but lower quality">Basis Universal</span>
+                </div>
+            </fieldset>
         </div>
-        <div id="text-output" style="display: none">
-            <div id="scroll-pin"></div>
+        <div id="toolbar-view">
+            <div class="right-align-row">
+                <label for="log-level">Log level:</label>
+                <select id="log-level">
+                    <option value="error">Errors only</option>
+                    <option value="warning">Errors and warnings</option>
+                    <option value="info" selected>Normal</option>
+                    <option value="debug">Verbose</option>
+                </select>
+                <button id="clear-text-output-button">Clear text output</button>
+                <button id="toggle-text-output-button">Show text output</button>
+                <button id="split-button" disabled>Split model</button>
+            </div>
+            <div id="text-output" style="display: none">
+                <div id="scroll-pin"></div>
+            </div>
         </div>
     </div>
     <script src="renderer-bundle.js"></script>

@@ -35,6 +35,7 @@ async function main() {
     let resetPosition = false;
     let resetRotation = false;
     let resetScale = false;
+    let createInstanceGroup = false;
 
     try {
         const cliArgs = process.argv.slice(2);
@@ -118,6 +119,8 @@ async function main() {
                 resetRotation = true;
             } else if (arg === '--reset-scale') {
                 resetScale = true;
+            } else if (arg === '--create-instance-group') {
+                createInstanceGroup = true;
             } else {
                 if (arg.startsWith('--')) {
                     throw new Error(`Unknown option: ${arg}`);
@@ -213,7 +216,8 @@ async function main() {
             defaultEmbedTextures, defaultTextureResizing, force,
             defaultOptimizeSceneHierarchy, defaultMergeMaterials,
             defaultAggressive, defaultBasisUniversal, gltfpackPath, logger,
-            splitDepth, resetPosition, resetRotation, resetScale
+            splitDepth, resetPosition, resetRotation, resetScale,
+            createInstanceGroup
         });
     } catch(err) {
         if (err instanceof CollisionError) {

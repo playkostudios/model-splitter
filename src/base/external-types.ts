@@ -31,4 +31,5 @@ export interface SplitModelOptions {
     resetPosition?: boolean;
     resetRotation?: boolean;
     resetScale?: boolean;
+    createInstanceGroup?: boolean;
 }

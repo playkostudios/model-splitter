@@ -14,9 +14,11 @@ import { PatchedNodeIO } from './PatchedNodeIO';
 import { PlaykoExternalWLEMaterial } from './PlaykoExternalWLEMaterial';
 import { TextureResizer } from './TextureResizer';
 
-import type { Metadata } from './output-types';
+import type { InstanceGroup, Metadata } from './output-types';
 import type { GltfpackArgCombo, ParsedLODConfigList } from './internal-types';
 import type { LODConfigList, PackedResizeOption, SplitModelOptions } from './external-types';
+import { quat, vec3 } from 'gl-matrix';
+import { naturalListToString } from './naturalListToString';
 
 export * from './ModelSplitterError';
 export * from './external-types';
@@ -36,6 +38,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     const resetPosition = options.resetPosition ?? false;
     const resetRotation = options.resetRotation ?? false;
     const resetScale = options.resetScale ?? false;
+    const createInstanceGroup = options.createInstanceGroup ?? false;
 
     // verify that there is work to do
     const lodCount = lods.length;
@@ -162,16 +165,53 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     });
 
     // convert model to a format usable by wonderland engine, run gltfpack,
-    // generate each lod, and write metadata file for part
+    // generate each lod, write metadata file for parts, and create placements
+    // for parts
     const textureResizer = new TextureResizer(tempFolderPath, hasTempCacheDep && hasEmbedded && nonBasisuCount > 1, logger);
 
     try {
+        let instanceGroup: InstanceGroup | null = null;
+        const groupOutPath = resolvePath(outputFolder, `${modelName}.group-metadata.json`);
+        if (createInstanceGroup) {
+            instanceGroup = {
+                name: modelName,
+                sources: [],
+                instances: [],
+            };
+
+            // check if instance group destination is free (double-checked
+            // later)
+            if (!force) {
+                assertFreeFile(groupOutPath);
+            }
+
+            // warn about useless instance group settings, which might not be
+            // what the user wants
+            if (splitDepth === 0) {
+                logger.warn('Instance group will be created, but no depth-splitting is being done. This might be a mistake; you will get an instance group with just one instance');
+            } else if (!(resetPosition && resetRotation && resetScale)) {
+                const notReset = [];
+                if (!resetPosition) {
+                    notReset.push('positions');
+                }
+                if (!resetRotation) {
+                    notReset.push('rotations');
+                }
+                if (!resetScale) {
+                    notReset.push('scales');
+                }
+
+                logger.warn(`Instance group will be created, but ${naturalListToString(notReset)} are not being reset. This might be a mistake; you will probably get one model per instance, instead of multiple instances reusing the same model`);
+            }
+        }
+
         let hadParts = false;
         await wlefyAndSplitModel(logger, io, inputModelPath, tempFolderPath, splitDepth, resetPosition, resetRotation, resetScale, async (splitName: string | null, glbPath: string, metadata: Metadata) => {
             hadParts = true;
             const splitSuffix = splitName === null ? 'for model root' : `for model part "${splitName}"`;
             const finalPartName = splitName === null ? modelName : `${modelName}-${splitName}`;
-            const metaOutPath = resolvePath(outputFolder, `${finalPartName}.metadata.json`);
+            const metaOutFileName = `${finalPartName}.metadata.json`;
+            const metaOutPath = resolvePath(outputFolder, metaOutFileName);
 
             // check if metadata destination is free (double-checked later)
             if (!force) {
@@ -206,6 +246,22 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
             }
 
             writeFileSync(metaOutPath, JSON.stringify(metadata));
+
+            if (instanceGroup) {
+                const sources = instanceGroup.sources;
+                sources.push(metaOutFileName);
+                return sources.length - 1;
+            } else {
+                return -1;
+            }
+        }, (source: number, name: string, position: vec3, rotation: quat, scale: vec3) => {
+            if (instanceGroup === null) {
+                return;
+            }
+
+            instanceGroup.instances.push({
+                name, source, position, rotation, scale,
+            });
         });
 
         if (!hadParts) {
@@ -214,6 +270,16 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
             } else {
                 throw new Error('No models were processed. This is most likely a bug, please report it');
             }
+        }
+
+        if (createInstanceGroup) {
+            logger.debug(`Writing instance group file ("${groupOutPath}")...`);
+
+            if (!force) {
+                assertFreeFile(groupOutPath);
+            }
+
+            writeFileSync(groupOutPath, JSON.stringify(instanceGroup));
         }
     } finally {
         logger.debug('Cleaning up texture resizer cache');
