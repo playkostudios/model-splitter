@@ -59,7 +59,7 @@ export class LODModelLoader {
         if (result === null) {
             throw new Error('Failed to load model');
         } else if (result instanceof Object3D) {
-            throw new Error('Unexpected Object3D result from Scene.append; expeceted SceneAppendResultWithExtensions');
+            throw new Error('Unexpected Object3D result from Scene.append; expected SceneAppendResultWithExtensions');
         }
 
         const { extensions, root } = result;
