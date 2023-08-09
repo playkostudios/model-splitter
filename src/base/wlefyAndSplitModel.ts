@@ -23,7 +23,7 @@ function scanDescendantNodes(focus: Node, visited: Set<Node>) {
     }
 }
 
-function getTransformCorrection(origNode: Node, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, discardDepthSplitParentNodes: boolean, target: Node | null): TransformCorrection | null {
+function getTransformCorrection(origNode: Node, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, target: Node | null): TransformCorrection | null {
     let posCorrect: gvec3, rotCorrect: gvec4, scaleCorrect: gvec3,
         needsCorrection = false;
     if (resetPosition) {
@@ -33,12 +33,7 @@ function getTransformCorrection(origNode: Node, resetPosition: boolean, resetRot
 
         posCorrect = [0,0,0];
     } else {
-        if (discardDepthSplitParentNodes) {
-            posCorrect = origNode.getWorldTranslation();
-        } else {
-            posCorrect = origNode.getTranslation();
-        }
-
+        posCorrect = origNode.getTranslation();
         vec3.negate(posCorrect, posCorrect);
 
         if (!vec3.equals(posCorrect, [0,0,0])) {
@@ -53,12 +48,7 @@ function getTransformCorrection(origNode: Node, resetPosition: boolean, resetRot
 
         rotCorrect = [0,0,0,1];
     } else {
-        if (discardDepthSplitParentNodes) {
-            rotCorrect = origNode.getWorldRotation();
-        } else {
-            rotCorrect = origNode.getRotation();
-        }
-
+        rotCorrect = origNode.getRotation();
         quat.invert(rotCorrect, rotCorrect);
 
         if (!quat.equals(rotCorrect, [0,0,0,1])) {
@@ -73,12 +63,7 @@ function getTransformCorrection(origNode: Node, resetPosition: boolean, resetRot
 
         scaleCorrect = [1,1,1];
     } else {
-        if (discardDepthSplitParentNodes) {
-            scaleCorrect = origNode.getWorldScale();
-        } else {
-            scaleCorrect = origNode.getScale();
-        }
-
+        scaleCorrect = origNode.getScale();
         vec3.div(scaleCorrect, [1,1,1], scaleCorrect);
 
         if (!vec3.equals(scaleCorrect, [1,1,1])) {
@@ -93,7 +78,7 @@ function getTransformCorrection(origNode: Node, resetPosition: boolean, resetRot
     }
 }
 
-function isSubsceneEqual(aNode: Node, bNode: Node, ignoreRootName: boolean, ignoreRootPos: boolean, ignoreRootRot: boolean, ignoreRootScale: boolean, compareRootWorldTransform: boolean, aNodeIsDeep: boolean): boolean {
+function isSubsceneEqual(aNode: Node, bNode: Node, ignoreRootName: boolean, ignoreRootPos: boolean, ignoreRootRot: boolean, ignoreRootScale: boolean, aNodeIsDeep: boolean): boolean {
     // compare name
     if (!ignoreRootName && aNode.getName() !== bNode.getName()) {
         return false;
@@ -117,34 +102,16 @@ function isSubsceneEqual(aNode: Node, bNode: Node, ignoreRootName: boolean, igno
     }
 
     // compare transformation
-    if (!ignoreRootPos) {
-        if (compareRootWorldTransform) {
-            if (!vec3.equals(aNode.getWorldTranslation(), bNode.getWorldTranslation())) {
-                return false;
-            }
-        } else if (!vec3.equals(aNode.getTranslation(), bNode.getTranslation())) {
-            return false;
-        }
+    if (!ignoreRootPos && !vec3.equals(aNode.getTranslation(), bNode.getTranslation())) {
+        return false;
     }
 
-    if (!ignoreRootRot) {
-        if (compareRootWorldTransform) {
-            if (!quat.equals(aNode.getWorldRotation(), bNode.getWorldRotation())) {
-                return false;
-            }
-        } else if (!quat.equals(aNode.getRotation(), bNode.getRotation())) {
-            return false;
-        }
+    if (!ignoreRootRot && !quat.equals(aNode.getRotation(), bNode.getRotation())) {
+        return false;
     }
 
-    if (!ignoreRootScale) {
-        if (compareRootWorldTransform) {
-            if (!vec3.equals(aNode.getWorldScale(), bNode.getWorldScale())) {
-                return false;
-            }
-        } else if (!vec3.equals(aNode.getScale(), bNode.getScale())) {
-            return false;
-        }
+    if (!ignoreRootScale && !vec3.equals(aNode.getScale(), bNode.getScale())) {
+        return false;
     }
 
     // compare everything else except children
@@ -162,22 +129,16 @@ function isSubsceneEqual(aNode: Node, bNode: Node, ignoreRootName: boolean, igno
     return true;
 }
 
-function makeInstanceFromNode(instanceCallback: InstanceCallback, sourceID: number | null, origNode: Node, useWorldTransform: boolean, transformCorrection: TransformCorrection | null) {
-    const position = useWorldTransform ? origNode.getWorldTranslation() : origNode.getTranslation();
-    const rotation = useWorldTransform ? origNode.getWorldRotation() : origNode.getRotation();
-    const scale = useWorldTransform ? origNode.getWorldScale() : origNode.getScale();
-
+function makeInstanceFromNode(instanceCallback: InstanceCallback, sourceID: number | null, origNode: Node, transformCorrection: TransformCorrection | null) {
+    // make dummy mode as parent of wanted node to correct for lack of transform
+    // reset in model if necessary
+    instanceCallback(transformCorrection ? null : sourceID, origNode.getName(), origNode.getTranslation(), origNode.getRotation(), origNode.getScale());
     if (transformCorrection) {
-        // make dummy mode as parent of wanted node to correct for lack of
-        // transform reset in model
-        instanceCallback(null, origNode.getName(), position, rotation, scale);
         instanceCallback(sourceID, '', ...transformCorrection);
-    } else {
-        instanceCallback(sourceID, origNode.getName(), position, rotation, scale);
     }
 }
 
-async function extractNode(logger: ILogger, origDoc: Document, origSceneIdx: number, origNode: Node, discardDepthSplitParentNodes: boolean, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, takenNames: Set<string>, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, deep: boolean) {
+async function extractNode(logger: ILogger, origDoc: Document, origSceneIdx: number, origNode: Node, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, takenNames: Set<string>, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, deep: boolean) {
     logger.debug('Checking if node is not a duplicate...');
 
     // check if child is a duplicate of another child
@@ -191,10 +152,10 @@ async function extractNode(logger: ILogger, origDoc: Document, origSceneIdx: num
     for (const [otherNodeIdx, sourceID] of splitNodeIdxs) {
         const otherNode = origNodes[otherNodeIdx];
 
-        if (isSubsceneEqual(origNode, otherNode, true, resetPosition, resetRotation, resetScale, discardDepthSplitParentNodes, deep)) {
+        if (isSubsceneEqual(origNode, otherNode, true, resetPosition, resetRotation, resetScale, deep)) {
             logger.debug('Node is a duplicate, skipped');
-            const transformCorrect = getTransformCorrection(origNode, resetPosition, resetRotation, resetScale, discardDepthSplitParentNodes, null);
-            makeInstanceFromNode(instanceCallback, sourceID, origNode, discardDepthSplitParentNodes, transformCorrect);
+            const transformCorrect = getTransformCorrection(origNode, resetPosition, resetRotation, resetScale, null);
+            makeInstanceFromNode(instanceCallback, sourceID, origNode, transformCorrect);
             return;
         }
     }
@@ -222,7 +183,7 @@ async function extractNode(logger: ILogger, origDoc: Document, origSceneIdx: num
     const target = nodes[origNodeIdx];
 
     // optionally reset parts of target node transform
-    const transformCorrect = getTransformCorrection(origNode, resetPosition, resetRotation, resetScale, discardDepthSplitParentNodes, target);
+    const transformCorrect = getTransformCorrection(origNode, resetPosition, resetRotation, resetScale, target);
 
     // move child to top of hierarchy
     target.detach();
@@ -271,29 +232,42 @@ async function extractNode(logger: ILogger, origDoc: Document, origSceneIdx: num
 
     const sourceID = await docTransformerCallback(splitName, doc);
     splitNodeIdxs.push([origNodeIdx, sourceID]);
-    makeInstanceFromNode(instanceCallback, sourceID, origNode, discardDepthSplitParentNodes, transformCorrect);
+    makeInstanceFromNode(instanceCallback, sourceID, origNode, transformCorrect);
 }
 
-async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: number, origNode: Node, depth: number, targetDepth: number, discardDepthSplitParentNodes: boolean, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, takenNames: Set<string>, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean) {
+async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: number, origNode: Node, depth: number, targetDepth: number, depthOffset: number, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, takenNames: Set<string>, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean) {
     if (depth === targetDepth) {
         // we are at the target depth, split here
-        logger.debug(`Found wanted deep node named "${origNode.getName()}" at target depth (${depth})`);
-        await extractNode(logger, origDoc, origSceneIdx, origNode, discardDepthSplitParentNodes, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, true);
+        logger.debug(`Found wanted deep node named "${origNode.getName()}" at target depth (${depth + depthOffset})`);
+        await extractNode(logger, origDoc, origSceneIdx, origNode, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, true);
     } else if (depth < targetDepth) {
-        // shallow-split if not discarding parent nodes
-        if (!discardDepthSplitParentNodes) {
-            if (origNode.getMesh()) {
-                logger.debug(`Found shallow parent node named "${origNode.getName()}" above target depth (${depth})`);
-                await extractNode(logger, origDoc, origSceneIdx, origNode, discardDepthSplitParentNodes, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, false)
-            } else {
-                makeInstanceFromNode(instanceCallback, null, origNode, false, null);
-            }
+        // shallow-split
+        if (origNode.getMesh()) {
+            logger.debug(`Found shallow parent node named "${origNode.getName()}" above target depth (${depth + depthOffset})`);
+            await extractNode(logger, origDoc, origSceneIdx, origNode, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, false)
+        } else {
+            makeInstanceFromNode(instanceCallback, null, origNode, null);
         }
 
         // split children
         const nextDepth = depth + 1;
         for (const child of origNode.listChildren()) {
-            await extractAtDepth(logger, origDoc, origSceneIdx, child, nextDepth, targetDepth, discardDepthSplitParentNodes, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale);
+            await extractAtDepth(logger, origDoc, origSceneIdx, child, nextDepth, targetDepth, depthOffset, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale);
+        }
+    }
+}
+
+function enumerateAtDepth(node: Node, depth: number, targetDepth: number, targetList: Array<Node>, parentList: Array<Node>) {
+    if (depth === targetDepth) {
+        // we are at the target depth, add to list and stop traversing
+        targetList.push(node);
+        return;
+    } else {
+        // traverse children
+        parentList.push(node);
+        const nextDepth = depth + 1;
+        for (const child of node.listChildren()) {
+            enumerateAtDepth(child, nextDepth, targetDepth, targetList, parentList);
         }
     }
 }
@@ -356,8 +330,49 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
         const sourceID = await docTransformerCallback(null, origDoc);
         instanceCallback(sourceID, origRoot.getDefaultScene()?.getName() ?? 'root', [0,0,0], [0,0,0,1], [1,1,1]);
     } else {
+        // discard parent nodes if wanted, but keep child nodes with the same
+        // world transform
+        let depthOffset = 0;
+        if (discardDepthSplitParentNodes && splitDepth > 1) {
+            logger.warn(`Discarding parent nodes ${splitDepth === 2 ? 'at depth 1' : `at the depth range [1:${splitDepth - 1}]`}...`);
+
+            const root = origDoc.getRoot();
+            const scenes = root.listScenes();
+            for (const scene of scenes) {
+                // get nodes at target depth
+                const sceneNodesToKeep = new Array<Node>();
+                const sceneNodesToDispose = new Array<Node>();
+                for (const child of scene.listChildren()) {
+                    enumerateAtDepth(child, 1, splitDepth, sceneNodesToKeep, sceneNodesToDispose);
+                }
+
+                // move target nodes to top of hierarchy, and keep their world
+                // transform
+                for (const node of sceneNodesToKeep) {
+                    const wPos = node.getWorldTranslation();
+                    const wRot = node.getWorldRotation();
+                    const wScale = node.getWorldScale();
+                    node.setTranslation(wPos);
+                    node.setRotation(wRot);
+                    node.setScale(wScale);
+                    scene.addChild(node);
+                }
+
+                for (const node of sceneNodesToDispose) {
+                    node.dispose();
+                }
+            }
+
+            // shift target depth now that we changed the scene graph
+            depthOffset = splitDepth - 1;
+            splitDepth = 1;
+        }
+
         // deduplicate document so that duplicate child detection doesn't fail
         await origDoc.transform(
+            prune({
+                keepAttributes: false,
+            }),
             dedup(),
         );
 
@@ -369,7 +384,7 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
         for (let s = 0; s < sceneCount; s++) {
             const scene = scenes[s];
             for (const child of scene.listChildren()) {
-                await extractAtDepth(logger, origDoc, s, child, 1, splitDepth, discardDepthSplitParentNodes, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale);
+                await extractAtDepth(logger, origDoc, s, child, 1, splitDepth, depthOffset, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale);
             }
         }
     }

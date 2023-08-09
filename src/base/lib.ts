@@ -210,8 +210,13 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
             }
         }
 
-        // warn about transform reset + no depth splitting behaviour
+        // warn about transform reset/parent node discard + no depth splitting
+        // behaviour
         if (splitDepth === 0) {
+            if (discardDepthSplitParentNodes) {
+                logger.warn('No depth-splitting is being done, but depth-split parent nodes is enabled. Option will have no effect');
+            }
+
             if (resetPosition || resetRotation || resetScale) {
                 logger.warn(`No depth-splitting is being done, but ${resetTransformToString(resetPosition, resetRotation, resetScale)} are being reset. This might be a mistake; when resetting transforms with no depth, the depth is treated as 1, but the model isn't split, meaning that children of the scene root will have their transforms reset`);
 
