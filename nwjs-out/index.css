@@ -22,15 +22,19 @@ p {
     margin: 0;
 }
 
-#main > div {
+.column {
     display: flex;
     flex-direction: column;
     padding: 8px;
     margin: 0;
 }
 
-#main > div > :not(:first-child) {
+.column > :not(:first-child) {
     margin-top: 8px;
+}
+
+.column fieldset > :nth-child(2) {
+    margin-top: 0;
 }
 
 #options-view {

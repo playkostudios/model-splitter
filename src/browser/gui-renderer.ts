@@ -306,6 +306,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
     const resetRotationInput = getElement<HTMLInputElement>('reset-rotation-input');
     const resetScaleInput = getElement<HTMLInputElement>('reset-scale-input');
     const createInstanceGroupInput = getElement<HTMLInputElement>('create-instance-group-input');
+    const discardDepthSplitParentNodesInput = getElement<HTMLInputElement>('discard-depth-split-parent-nodes-input');
 
     const defaultTextureSizeInput = getElement<HTMLInputElement>('default-texture-size-input');
     let lastValidDefaultTextureSize = defaultTextureSizeInput.value;
@@ -319,10 +320,16 @@ async function startRenderer(main: HTMLElement): Promise<void> {
     const toggleTextOutputButton = getElement<HTMLButtonElement>('toggle-text-output-button');
     const textOutput = getElement<HTMLDivElement>('text-output');
     const scrollPin = getElement<HTMLDivElement>('scroll-pin');
+    const depthSplitExtra = getElement<HTMLDivElement>('depth-split-extra');
 
     const splitButton = getElement<HTMLButtonElement>('split-button');
 
     // add event listeners
+    splitDepthInput.addEventListener('change', () => {
+        const splitDepth = splitDepthInput.valueAsNumber;
+        depthSplitExtra.style.display = (Number.isInteger(splitDepth) && splitDepth > 0) ? '' : 'none';
+    });
+
     let logLevel = parseLogLevel(logLevelSelect);
     logLevelSelect.addEventListener('change', () => {
         logLevel = parseLogLevel(logLevelSelect);
@@ -411,11 +418,12 @@ async function startRenderer(main: HTMLElement): Promise<void> {
             const defaultMergeMaterials = mergeMaterialsInput.checked;
             const defaultAggressive = aggressiveInput.checked;
             const defaultBasisUniversal = basisUniversalSelect.value as BasisUniversalMode;
-            const splitDepth = splitDepthInput.value === '' ? 0 : Number(splitDepthInput.value);
+            const splitDepth = splitDepthInput.valueAsNumber;
             const resetPosition = resetPositionInput.checked;
             const resetRotation = resetRotationInput.checked;
             const resetScale = resetScaleInput.checked;
             const createInstanceGroup = createInstanceGroupInput.checked;
+            let discardDepthSplitParentNodes = discardDepthSplitParentNodesInput.checked;
 
             if (lodList.children.length <= LOD_ROW_ELEM_OFFSET) {
                 throw new Error('Nothing to do; no LODs added');
@@ -425,6 +433,10 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                 throw new Error('Split depth is not a valid integer');
             } else if (splitDepth < 0) {
                 throw new Error('Split depth must be greater or equal to zero');
+            }
+
+            if (splitDepth === 0) {
+                discardDepthSplitParentNodes = false;
             }
 
             const defaultTextureResizing = parseTextureSize(defaultTextureSizeInput.value, false);
@@ -491,7 +503,8 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                     defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                     defaultAggressive, defaultBasisUniversal, gltfpackPath,
                     splitDepth, resetPosition, resetRotation, resetScale,
-                    createInstanceGroup, force
+                    createInstanceGroup, discardDepthSplitParentNodes,
+                    force
                 }, worker);
             } catch(err: unknown) {
                 assertCollisionError(err);
@@ -502,7 +515,8 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                         defaultOptimizeSceneHierarchy, defaultMergeMaterials,
                         defaultAggressive, defaultBasisUniversal, gltfpackPath,
                         splitDepth, resetPosition, resetRotation, resetScale,
-                        createInstanceGroup, force: true
+                        createInstanceGroup, discardDepthSplitParentNodes,
+                        force: true
                     }, worker);
                 } else {
                     throw err;

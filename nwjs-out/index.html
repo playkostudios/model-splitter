@@ -8,11 +8,11 @@
 </head>
 <body>
     <p id="loading-msg">Loading...</p>
-    <div id="main" style="display: none">
-        <div id="options-view">
+    <div id="main" class="column" style="display: none">
+        <div id="options-view" class="column">
             <p>Input model:</p>
             <div class="picker-input-row">
-                <input type="file" id="input-model-picker" class="hidden" />
+                <input type="file" id="input-model-picker" accept=".gltf,.glb" class="hidden" />
                 <input type="text" id="input-model-input" class="expand" />
                 <button id="input-model-button">Pick...</button>
             </div>
@@ -56,9 +56,18 @@
                     <option value="etc1s">ETC1S</option>
                 </select>
             </div>
-            <div class="input-row" title="If set to an integer greater than 0, then the model will be split into multiple ones at the child nodes at the given depth. For example, a depth of 1 indicates children, 2 grandchildren, etc...">
-                <label for="split-depth-input" class="expand">Split depth</label>
-                <input type="number" id="split-depth-input" min="0" value="0" />
+            <div>
+                <div class="input-row" title="If set to an integer greater than 0, then the model will be split into multiple ones at the child nodes at the given depth. For example, a depth of 1 indicates children, 2 grandchildren, etc...">
+                    <label for="split-depth-input" class="expand">Split depth</label>
+                    <input type="number" id="split-depth-input" min="0" value="0" />
+                </div>
+                <fieldset id="depth-split-extra" class="column" style="display: none">
+                    <legend>Extra depth-split options:</legend>
+                    <div class="input-row" title="If enabled, parent nodes above the target split depth will be discarded. For example, if splitting at a depth of 3, nodes at a depth of 1 and 2 will be discarded">
+                        <label for="discard-depth-split-parent-nodes-input" class="expand">Discard parent nodes of depth-split nodes</label>
+                        <input type="checkbox" id="discard-depth-split-parent-nodes-input" />
+                    </div>
+                </fieldset>
             </div>
             <div class="input-row">
                 <label for="reset-position-input" class="expand">Reset the position of each child of all scenes</label>
@@ -98,7 +107,7 @@
                 </div>
             </fieldset>
         </div>
-        <div id="toolbar-view">
+        <div id="toolbar-view" class="column">
             <div class="right-align-row">
                 <label for="log-level">Log level:</label>
                 <select id="log-level">

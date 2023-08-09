@@ -87,6 +87,12 @@ Options:
 - `--aggressive`: Simplify mesh disregarding quality. Can be overridden per LOD
 - `--texture-size <percentage or target side length>`: The texture size to use for each generated LOD if it's not specified in the LOD arguments
 - `--basisu <disabled, uastc, etc1s>`: Should textures be compressed with basisu? Can be overridden per LOD. Disabled by default
+- `--split-depth <depth>`: If set to an integer greater than 0, then the model will be split into multiple ones at the child nodes at the given depth. For example, a depth of 1 indicates children, 2 grandchildren, etc... A split depth of 1 would create multiple model files per LOD with each child of the root, instead of a single model file per LOD with the root of the scene
+- `--reset-position`: Reset position of root node, or each child node if splitting by depth
+- `--reset-rotation`: Reset rotation of root node, or each child node if splitting by depth
+- `--reset-scale`: Reset scale of root node, or each child node if splitting by depth
+- `--create-instance-group`: Create a separate instance group metadata file. This is especially useful for depth-split models which reset child transforms, as this file will contain a scene with references to all the split models, and their placements in the scene
+- `--discard-depth-split-parent-nodes`: If enabled, parent nodes above the target split depth will be discarded. For example, if splitting at a depth of 3, nodes at a depth of 1 and 2 will be discarded
 - `--gltfpack-path <gltfpack bin path>`: Path to gltfpack binary. If none is specified, then the binary is assumed to be accessible via the PATH variable ("gltfpack" on Linux, "gltfpack.exe" on Windows)
 - `--log-level <log level>`: The log level to use. Can be: 'none', 'error', 'warning', 'log' or 'debug'
 - `--version`: Print version and exit

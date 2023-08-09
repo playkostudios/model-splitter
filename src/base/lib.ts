@@ -278,9 +278,9 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
             } else {
                 return -1;
             }
-        }, (nullableSource: number | null, name: string, position: vec3, rotation: quat, scale: vec3) => {
+        }, (nullableSource: number | null, nullableParent: number | null, name: string, position: vec3, rotation: quat, scale: vec3) => {
             if (instanceGroup === null) {
-                return;
+                return -1;
             }
 
             // XXX null source represents a node with no mesh, used for parent
@@ -290,7 +290,10 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
             instanceGroup.instances.push({
                 name, position, rotation, scale,
                 source: nullableSource ?? undefined,
+                parent: nullableParent ?? undefined
             });
+
+            return instanceGroup.instances.length - 1;
         });
 
         if (!hadParts) {

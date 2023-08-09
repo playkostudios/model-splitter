@@ -36,6 +36,7 @@ async function main() {
     let resetRotation = false;
     let resetScale = false;
     let createInstanceGroup = false;
+    let discardDepthSplitParentNodes = false;
 
     try {
         const cliArgs = process.argv.slice(2);
@@ -121,6 +122,8 @@ async function main() {
                 resetScale = true;
             } else if (arg === '--create-instance-group') {
                 createInstanceGroup = true;
+            } else if (arg === '--discard-depth-split-parent-nodes') {
+                discardDepthSplitParentNodes = true;
             } else {
                 if (arg.startsWith('--')) {
                     throw new Error(`Unknown option: ${arg}`);
@@ -217,7 +220,7 @@ async function main() {
             defaultOptimizeSceneHierarchy, defaultMergeMaterials,
             defaultAggressive, defaultBasisUniversal, gltfpackPath, logger,
             splitDepth, resetPosition, resetRotation, resetScale,
-            createInstanceGroup
+            createInstanceGroup, discardDepthSplitParentNodes
         });
     } catch(err) {
         if (err instanceof CollisionError) {

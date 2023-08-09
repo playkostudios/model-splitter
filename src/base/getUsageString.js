@@ -35,6 +35,7 @@ Options:
 - ${decorateArg('--reset-rotation')}: Reset rotation of root node, or each child node if splitting by depth
 - ${decorateArg('--reset-scale')}: Reset scale of root node, or each child node if splitting by depth
 - ${decorateArg('--create-instance-group')}: Create a separate instance group metadata file. This is especially useful for depth-split models which reset child transforms, as this file will contain a scene with references to all the split models, and their placements in the scene
+- ${decorateArg('--discard-depth-split-parent-nodes')}: If enabled, parent nodes above the target split depth will be discarded. For example, if splitting at a depth of 3, nodes at a depth of 1 and 2 will be discarded
 - ${decorateArg('--gltfpack-path <gltfpack bin path>')}: Path to gltfpack binary. If none is specified, then the binary is assumed to be accessible via the PATH variable (${defaultGltfpackPath})
 - ${decorateArg('--log-level <log level>')}: The log level to use. Can be: 'none', 'error', 'warning', 'log' or 'debug'
 - ${decorateArg('--version')}: Print version and exit
