@@ -38,7 +38,8 @@ export interface InstanceGroup {
 
 export interface Instance {
     name: string,
-    source: number,
+    source?: number,
+    parent?: number,
     position: vec3,
     rotation: quat,
     scale: vec3,

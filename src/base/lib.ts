@@ -23,6 +23,21 @@ import { naturalListToString } from './naturalListToString';
 export * from './ModelSplitterError';
 export * from './external-types';
 
+function resetTransformToString(resetPosition: boolean, resetRotation: boolean, resetScale: boolean): string {
+    const parts = [];
+    if (resetPosition) {
+        parts.push('positions');
+    }
+    if (resetRotation) {
+        parts.push('rotations');
+    }
+    if (resetScale) {
+        parts.push('scales');
+    }
+
+    return naturalListToString(parts);
+}
+
 async function _splitModel(tempFolderPath: string, inputModelPath: string, outputFolder: string, lods: LODConfigList, options: SplitModelOptions = {}) {
     // parse options and get defaults
     const defaultEmbedTextures = options.defaultEmbedTextures ?? false;
@@ -39,6 +54,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     const resetRotation = options.resetRotation ?? false;
     const resetScale = options.resetScale ?? false;
     const createInstanceGroup = options.createInstanceGroup ?? false;
+    const discardDepthSplitParentNodes = options.discardDepthSplitParentNodes ?? false;
 
     // verify that there is work to do
     const lodCount = lods.length;
@@ -190,23 +206,26 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
             if (splitDepth === 0) {
                 logger.warn('Instance group will be created, but no depth-splitting is being done. This might be a mistake; you will get an instance group with just one instance');
             } else if (!(resetPosition && resetRotation && resetScale)) {
-                const notReset = [];
-                if (!resetPosition) {
-                    notReset.push('positions');
-                }
-                if (!resetRotation) {
-                    notReset.push('rotations');
-                }
-                if (!resetScale) {
-                    notReset.push('scales');
-                }
-
-                logger.warn(`Instance group will be created, but ${naturalListToString(notReset)} are not being reset. This might be a mistake; you will probably get one model per instance, instead of multiple instances reusing the same model`);
+                logger.warn(`Instance group will be created, but ${resetTransformToString(!resetPosition, !resetRotation, !resetScale)} are not being reset. This might be a mistake; you will probably get one model per instance, instead of multiple instances reusing the same model`);
             }
         }
 
+        // warn about transform reset + no depth splitting behaviour
+        if (splitDepth === 0) {
+            if (resetPosition || resetRotation || resetScale) {
+                logger.warn(`No depth-splitting is being done, but ${resetTransformToString(resetPosition, resetRotation, resetScale)} are being reset. This might be a mistake; when resetting transforms with no depth, the depth is treated as 1, but the model isn't split, meaning that children of the scene root will have their transforms reset`);
+
+                if (resetPosition && resetRotation && resetScale) {
+                    logger.warn('The current settings will result in a catalogue model; a model with multiple sub-models at the root of the scene, similar to how SVG stacks work. Note that you are responsible for deduplicating the sub-models in the input model');
+                } else {
+                    logger.warn('Unless you have a very good reason to do this, you will most likely just ruin the scene graph');
+                }
+            }
+        }
+
+        // process parts
         let hadParts = false;
-        await wlefyAndSplitModel(logger, io, inputModelPath, tempFolderPath, splitDepth, resetPosition, resetRotation, resetScale, async (splitName: string | null, glbPath: string, metadata: Metadata) => {
+        await wlefyAndSplitModel(logger, io, inputModelPath, tempFolderPath, splitDepth, discardDepthSplitParentNodes, resetPosition, resetRotation, resetScale, async (splitName: string | null, glbPath: string, metadata: Metadata) => {
             hadParts = true;
             const splitSuffix = splitName === null ? 'for model root' : `for model part "${splitName}"`;
             const finalPartName = splitName === null ? modelName : `${modelName}-${splitName}`;
@@ -254,13 +273,18 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
             } else {
                 return -1;
             }
-        }, (source: number, name: string, position: vec3, rotation: quat, scale: vec3) => {
+        }, (nullableSource: number | null, name: string, position: vec3, rotation: quat, scale: vec3) => {
             if (instanceGroup === null) {
                 return;
             }
 
+            // XXX null source represents a node with no mesh, used for parent
+            //     nodes when depth-splitting, or dummy nodes used for
+            //     correcting the transform of a mesh that didn't have its
+            //     transforms reset
             instanceGroup.instances.push({
-                name, source, position, rotation, scale,
+                name, position, rotation, scale,
+                source: nullableSource ?? undefined,
             });
         });
 

@@ -32,4 +32,5 @@ export interface SplitModelOptions {
     resetRotation?: boolean;
     resetScale?: boolean;
     createInstanceGroup?: boolean;
+    discardDepthSplitParentNodes?: boolean;
 }
