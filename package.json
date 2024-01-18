@@ -20,7 +20,7 @@
   "scripts": {
     "prepare": "pnpm run copy-third-party-blobs",
     "lint": "eslint ./src",
-    "clean": "shx rm -rf lib/* pkgs/* model-splitter-gui-linux.tar.gz model-splitter-gui-win.zip nwjs-pkg-linux nwjs-pkg-win nwjs-out/*-bundle.js nwjs-out/*-bundle.js.map nwjs-out/library.wasm nwjs-out/draco_decoder_gltf.wasm nwjs-out/mikktspace_main_bg.wasm nwjs-out/Build example-project/cache example-project/deploy example-project/static/basis-transcoder-worker.js example-project/static/basis-transcoder-worker.js.map lib-static/basis-transcoder-worker.js lib-static/basis-transcoder-worker.js.map",
+    "clean-build": "shx rm -rf lib/* pkgs/* model-splitter-gui-linux.tar.gz model-splitter-gui-win.zip nwjs-pkg-linux nwjs-pkg-win nwjs-out/*-bundle.js nwjs-out/*-bundle.js.map nwjs-out/library.wasm nwjs-out/draco_decoder_gltf.wasm nwjs-out/mikktspace_main_bg.wasm nwjs-out/Build example-project/cache example-project/deploy example-project/static/basis-transcoder-worker.js example-project/static/basis-transcoder-worker.js.map lib-static/basis-transcoder-worker.js lib-static/basis-transcoder-worker.js.map",
     "update-usage": "node ./scripts/update-usage.js",
     "copy-draco-blobs": "shx cp ./node_modules/draco3dgltf/draco_decoder_gltf.wasm ./lib/",
     "copy-mikktspace-blobs": "shx cp ./node_modules/mikktspace/dist/main/mikktspace_main_bg.wasm ./lib/",
@@ -43,7 +43,7 @@
     "gen-types": "tsc -p ./tsconfig-browser.json --outDir lib/types/ --emitDeclarationOnly && tsc -p ./tsconfig-base.json --outDir lib/types/ --emitDeclarationOnly",
     "build-all": "pnpm run build-runtime-lib && pnpm run build-lib && pnpm run build-cli && pnpm run build-gui && pnpm run gen-types",
     "pkg-all": "pnpm run pkg-cli && pnpm run pkg-gui",
-    "build-pkg-all": "pnpm run clean && pnpm run copy-third-party-blobs && pnpm run build-all && pnpm run pkg-all",
+    "build-pkg-all": "pnpm run clean-build && pnpm run copy-third-party-blobs && pnpm run build-all && pnpm run pkg-all",
     "dev-gui": "pnpm run copy-nwjs-third-party-blobs && concurrently 'esbuild --watch --minify --bundle --sourcemap --target=es6 --platform=node --format=cjs --outfile=nwjs-out/worker-bundle.js src/worker/gui-worker.ts' 'esbuild --watch --minify --bundle --sourcemap --target=es6 --platform=node --format=iife --outfile=nwjs-out/renderer-bundle.js src/browser/gui-renderer.ts' 'cd nwjs-out; nw-sdk .'"
   },
   "files": [
