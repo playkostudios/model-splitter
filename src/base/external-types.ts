@@ -1,4 +1,5 @@
-import type { ILogger } from '@gltf-transform/core';
+import { type ILogger } from '@gltf-transform/core';
+import { type InstanceGroupFormat } from './internal-types';
 
 export type ConcreteResizeOption = [width: number, height: number, type?: '%' | '!'];
 export type PackedResizeOption = ConcreteResizeOption | 'keep';
@@ -33,4 +34,5 @@ export interface SplitModelOptions {
     resetScale?: boolean;
     createInstanceGroup?: boolean;
     discardDepthSplitParentNodes?: boolean;
+    instanceGroupFormat?: InstanceGroupFormat,
 }

@@ -8,6 +8,7 @@ import { getDefaultGltfpackPath } from './getDefaultGltfpackPath';
 import { getUsageString } from './getUsageString';
 
 import type { LODConfigList, PackedResizeOption, DefaultablePackedResizeOption, BasisUniversalMode } from './lib';
+import { DEFAULT_INSTANCE_GROUP_FORMAT, InstanceGroupFormat } from './internal-types';
 
 function printHelp(execPath: string) {
     console.log(`\
@@ -37,6 +38,8 @@ async function main() {
     let resetScale = false;
     let createInstanceGroup = false;
     let discardDepthSplitParentNodes = false;
+    let expectInstanceGroupFormat = false;
+    let instanceGroupFormat: InstanceGroupFormat = DEFAULT_INSTANCE_GROUP_FORMAT;
 
     try {
         const cliArgs = process.argv.slice(2);
@@ -88,6 +91,22 @@ async function main() {
                 if (!Number.isInteger(splitDepth) || splitDepth < 0) {
                     throw new Error('Split depth must be a valid integer greater or equal to 0');
                 }
+            } else if (expectInstanceGroupFormat) {
+                expectInstanceGroupFormat = false;
+
+                switch(arg) {
+                case 'model-splitter-v1':
+                case 'model-splitter':
+                case 'default':
+                    instanceGroupFormat = InstanceGroupFormat.ModelSplitter_V1;
+                    break;
+                case 'rp1-blueprint-v1':
+                case 'rp1':
+                    instanceGroupFormat = InstanceGroupFormat.RP1Blueprint_V1;
+                    break;
+                default:
+                    throw new Error(`Unknown instance group format "${arg}"`);
+                }
             } else if (arg === '--help') {
                 printHelp(process.argv[1]);
                 process.exit(0);
@@ -122,6 +141,8 @@ async function main() {
                 resetScale = true;
             } else if (arg === '--create-instance-group') {
                 createInstanceGroup = true;
+            } else if (arg === '--instance-group-format') {
+                expectInstanceGroupFormat = true;
             } else if (arg === '--discard-depth-split-parent-nodes') {
                 discardDepthSplitParentNodes = true;
             } else {
@@ -220,7 +241,8 @@ async function main() {
             defaultOptimizeSceneHierarchy, defaultMergeMaterials,
             defaultAggressive, defaultBasisUniversal, gltfpackPath, logger,
             splitDepth, resetPosition, resetRotation, resetScale,
-            createInstanceGroup, discardDepthSplitParentNodes
+            createInstanceGroup, discardDepthSplitParentNodes,
+            instanceGroupFormat,
         });
     } catch(err) {
         if (err instanceof CollisionError) {

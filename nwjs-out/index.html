@@ -82,8 +82,12 @@
                 <input type="checkbox" id="reset-scale-input" />
             </div>
             <div class="input-row" title="Create a separate instance group metadata file. This is especially useful for depth-split models which reset child transforms, as this file will contain a scene with references to all the split models, and their placements in the scene">
-                <label for="create-instance-group-input" class="expand">Create instance group metadata</label>
-                <input type="checkbox" id="create-instance-group-input" />
+                <label for="instance-group-format-input" class="expand">Instance group metadata format</label>
+                <select id="instance-group-format-input">
+                    <option value="" selected>Don't create</option>
+                    <option value="model-splitter-v1">Model splitter V1</option>
+                    <option value="rp1-blueprint-v1">RP1 blueprint V1</option>
+                </select>
             </div>
             <div class="input-row" title="The resizing to apply to all textures in the model by default. Format: 'W,H', 'WxH', 'L', 'W,H!', 'WxH!' or 'L!' for specific widths, heights or lengths, and 'W,H%', 'WxH%' or 'L%' for percentage widths, heights or lengths">
                 <label for="default-texture-size-input" class="expand">Default texture size</label>

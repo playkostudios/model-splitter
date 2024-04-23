@@ -15,10 +15,12 @@ import { PlaykoExternalWLEMaterial } from './PlaykoExternalWLEMaterial';
 import { TextureResizer } from './TextureResizer';
 
 import type { InstanceGroup, Metadata } from './output-types';
-import type { GltfpackArgCombo, ParsedLODConfigList } from './internal-types';
+import { DEFAULT_INSTANCE_GROUP_FORMAT, GltfpackArgCombo, InstanceGroupFormat, ParsedLODConfigList } from './internal-types';
 import type { LODConfigList, PackedResizeOption, SplitModelOptions } from './external-types';
 import { quat, vec3 } from 'gl-matrix';
 import { naturalListToString } from './naturalListToString';
+import { writeInstanceGroup_ModelSplitter_V1 } from './writeInstanceGroup_ModelSplitter_V1';
+import { writeInstanceGroup_RP1Blueprint_V1 } from './writeInstanceGroup_RP1Blueprint_V1';
 
 export * from './ModelSplitterError';
 export * from './external-types';
@@ -53,7 +55,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     const resetPosition = options.resetPosition ?? false;
     const resetRotation = options.resetRotation ?? false;
     const resetScale = options.resetScale ?? false;
-    const createInstanceGroup = options.createInstanceGroup ?? false;
+    const instanceGroupFormat = (options.createInstanceGroup ?? false) ? (options.instanceGroupFormat ?? DEFAULT_INSTANCE_GROUP_FORMAT) : null;
     const discardDepthSplitParentNodes = options.discardDepthSplitParentNodes ?? false;
 
     // verify that there is work to do
@@ -188,7 +190,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
     try {
         let instanceGroup: InstanceGroup | null = null;
         const groupOutPath = resolvePath(outputFolder, `${modelName}.group-metadata.json`);
-        if (createInstanceGroup) {
+        if (instanceGroupFormat !== null) {
             instanceGroup = {
                 name: modelName,
                 sources: [],
@@ -230,6 +232,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
 
         // process parts
         let hadParts = false;
+        const sourceMetadata = new Array<Metadata>(); // only populated if generating instance groups
         await wlefyAndSplitModel(logger, io, inputModelPath, tempFolderPath, splitDepth, discardDepthSplitParentNodes, resetPosition, resetRotation, resetScale, async (splitName: string | null, glbPath: string, metadata: Metadata) => {
             hadParts = true;
             const splitSuffix = splitName === null ? 'for model root' : `for model part "${splitName}"`;
@@ -274,6 +277,7 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
             if (instanceGroup) {
                 const sources = instanceGroup.sources;
                 sources.push(metaOutFileName);
+                sourceMetadata.push(metadata);
                 return sources.length - 1;
             } else {
                 return -1;
@@ -304,14 +308,20 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
             }
         }
 
-        if (createInstanceGroup) {
-            logger.debug(`Writing instance group file ("${groupOutPath}")...`);
+        if (instanceGroup) {
+            logger.debug(`Writing instance group file ("${groupOutPath}") using format "${instanceGroupFormat}"...`);
 
             if (!force) {
                 assertFreeFile(groupOutPath);
             }
 
-            writeFileSync(groupOutPath, JSON.stringify(instanceGroup));
+            switch(instanceGroupFormat!) {
+            case InstanceGroupFormat.RP1Blueprint_V1:
+                writeInstanceGroup_RP1Blueprint_V1(groupOutPath, instanceGroup, sourceMetadata);
+                break;
+            default:
+                writeInstanceGroup_ModelSplitter_V1(groupOutPath, instanceGroup);
+            }
         }
     } finally {
         logger.debug('Cleaning up texture resizer cache');

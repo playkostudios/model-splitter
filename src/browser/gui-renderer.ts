@@ -10,6 +10,7 @@ import type { BasisUniversalMode, LODConfigList, SplitModelOptions } from '../ba
 import type { notify as _notify } from 'node-notifier';
 import type { ObjectLoggerMessage, ObjectLoggerMessageType } from '../base/ObjectLogger';
 import type { WorkerMessage, WorkerMessageRequest } from '../worker/worker-types';
+import { DEFAULT_INSTANCE_GROUP_FORMAT, type InstanceGroupFormat } from '../base/internal-types';
 
 type LoggerCallback = (message: ObjectLoggerMessage) => void;
 type ResolveFunction = CallableFunction;
@@ -305,8 +306,8 @@ async function startRenderer(main: HTMLElement): Promise<void> {
     const resetPositionInput = getElement<HTMLInputElement>('reset-position-input');
     const resetRotationInput = getElement<HTMLInputElement>('reset-rotation-input');
     const resetScaleInput = getElement<HTMLInputElement>('reset-scale-input');
-    const createInstanceGroupInput = getElement<HTMLInputElement>('create-instance-group-input');
     const discardDepthSplitParentNodesInput = getElement<HTMLInputElement>('discard-depth-split-parent-nodes-input');
+    const instanceGroupFormatSelect = getElement<HTMLSelectElement>('instance-group-format-input');
 
     const defaultTextureSizeInput = getElement<HTMLInputElement>('default-texture-size-input');
     let lastValidDefaultTextureSize = defaultTextureSizeInput.value;
@@ -422,8 +423,14 @@ async function startRenderer(main: HTMLElement): Promise<void> {
             const resetPosition = resetPositionInput.checked;
             const resetRotation = resetRotationInput.checked;
             const resetScale = resetScaleInput.checked;
-            const createInstanceGroup = createInstanceGroupInput.checked;
+            let createInstanceGroup = false;
+            let instanceGroupFormat = DEFAULT_INSTANCE_GROUP_FORMAT;
             let discardDepthSplitParentNodes = discardDepthSplitParentNodesInput.checked;
+
+            if (instanceGroupFormatSelect.value !== '') {
+                createInstanceGroup = true;
+                instanceGroupFormat = instanceGroupFormatSelect.value as InstanceGroupFormat;
+            }
 
             if (lodList.children.length <= LOD_ROW_ELEM_OFFSET) {
                 throw new Error('Nothing to do; no LODs added');
@@ -504,7 +511,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                     defaultAggressive, defaultBasisUniversal, gltfpackPath,
                     splitDepth, resetPosition, resetRotation, resetScale,
                     createInstanceGroup, discardDepthSplitParentNodes,
-                    force
+                    instanceGroupFormat, force
                 }, worker);
             } catch(err: unknown) {
                 assertCollisionError(err);
@@ -516,7 +523,7 @@ async function startRenderer(main: HTMLElement): Promise<void> {
                         defaultAggressive, defaultBasisUniversal, gltfpackPath,
                         splitDepth, resetPosition, resetRotation, resetScale,
                         createInstanceGroup, discardDepthSplitParentNodes,
-                        force: true
+                        instanceGroupFormat, force: true
                     }, worker);
                 } else {
                     throw err;
