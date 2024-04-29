@@ -1,9 +1,10 @@
-import { type Node, type Document, type ILogger } from '@gltf-transform/core';
+import { type Node, type Document, type ILogger, type Scene, PropertyType } from '@gltf-transform/core';
 import { resample, prune, dequantize, metalRough, tangents, unweld, partition, unpartition, dedup } from '@gltf-transform/functions';
 import { writeFileSync } from 'fs';
 import { quat, vec3 } from 'gl-matrix';
 import { generateTangents } from 'mikktspace';
 import { resolve as resolvePath } from 'node:path';
+import { disposeSubGraph } from './disposeSubGraph';
 import { getBoundingBox } from './getBoundingBox';
 import { type Metadata } from './output-types';
 
@@ -140,7 +141,7 @@ function makeInstanceFromNode(instanceCallback: InstanceCallback, sourceID: numb
     return id;
 }
 
-async function extractNode(logger: ILogger, origDoc: Document, origSceneIdx: number, origNode: Node, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, takenNames: Set<string>, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, deep: boolean, parentInstanceID: number | null) {
+async function extractNode(logger: ILogger, origDoc: Document, origNode: Node, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, takenNames: Set<string>, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, deep: boolean, parentInstanceID: number | null) {
     logger.debug('Checking if node is not a duplicate...');
 
     // check if child is a duplicate of another child
@@ -168,36 +169,78 @@ async function extractNode(logger: ILogger, origDoc: Document, origSceneIdx: num
     const doc = origDoc.clone();
     const root = doc.getRoot();
 
-    // trim out unwanted scenes
-    const scenes = root.listScenes();
-    const wantedScene = scenes[origSceneIdx];
-    for (let s = scenes.length - 1; s >= 0; s--) {
-        const scene = scenes[s];
-        if (scene !== wantedScene) {
-            scene.detach();
-        }
-    }
-    root.setDefaultScene(wantedScene);
-
     // find child in cloned scene
     const nodes = root.listNodes();
     const target = nodes[origNodeIdx];
+
+    // trim out unwanted scenes
+    const disposeStack = new Array<Scene | Node>();
+    const scenes = root.listScenes();
+    let wantedScene: Scene | undefined;
+
+    let wantedTopNodeScene: Scene | Node = target;
+    for (let stop: boolean;;) {
+        stop = true;
+
+        for (const parent of wantedTopNodeScene.listParents()) {
+            if (parent.propertyType === PropertyType.NODE) {
+                wantedTopNodeScene = parent as Node;
+                stop = false;
+                break;
+            } else if (parent.propertyType === PropertyType.SCENE) {
+                wantedTopNodeScene = parent as Scene;
+                break;
+            }
+        }
+
+        if (stop) {
+            break;
+        }
+    }
+
+    for (let s = scenes.length - 1; s >= 0; s--) {
+        const scene = scenes[s];
+        if (scene === wantedTopNodeScene) {
+            // XXX this is the target node's scene, skip
+            wantedScene = scene;
+            continue;
+        }
+
+        disposeStack.push(scene);
+    }
+
+    if (wantedScene) {
+        root.setDefaultScene(wantedScene);
+    } else {
+        logger.warn('Node is completely detached from any scene');
+    }
 
     // optionally reset parts of target node transform
     const transformCorrect = getTransformCorrection(origNode, resetPosition, resetRotation, resetScale, target);
 
     // move child to top of hierarchy
-    for (const child of wantedScene.listChildren()) {
-        child.detach();
-    }
+    if (wantedScene) {
+        for (const child of wantedScene.listChildren()) {
+            if (child !== target) {
+                disposeStack.push(child);
+            }
+        }
 
-    wantedScene.addChild(target);
+        target.detach();
+        wantedScene.addChild(target);
+    }
 
     // remove children from target if this is a shallow sub-model
     if (!deep) {
         for (const child of target.listChildren()) {
-            child.detach();
+            disposeStack.push(child);
         }
+    }
+
+    // dispose unwanted nodes recursively
+    let node: Scene | Node | undefined;
+    while ((node = disposeStack.pop())) {
+        disposeSubGraph(node);
     }
 
     // trim out unused resources (prune)
@@ -206,9 +249,7 @@ async function extractNode(logger: ILogger, origDoc: Document, origSceneIdx: num
             animations: true,
             meshes: true,
         }),
-        prune({
-            keepAttributes: false,
-        }),
+        prune(),
         unpartition(),
     );
 
@@ -235,17 +276,17 @@ async function extractNode(logger: ILogger, origDoc: Document, origSceneIdx: num
     return makeInstanceFromNode(instanceCallback, sourceID, parentInstanceID, origNode, transformCorrect);
 }
 
-async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: number, origNode: Node, depth: number, targetDepth: number, depthOffset: number, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, takenNames: Set<string>, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, parentInstanceID: number | null) {
+async function extractAtDepth(logger: ILogger, origDoc: Document, origNode: Node, depth: number, targetDepth: number, depthOffset: number, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, takenNames: Set<string>, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, parentInstanceID: number | null) {
     if (depth === targetDepth) {
         // we are at the target depth, split here
         logger.debug(`Found wanted deep node named "${origNode.getName()}" at target depth (${depth + depthOffset})`);
-        await extractNode(logger, origDoc, origSceneIdx, origNode, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, true, parentInstanceID);
+        await extractNode(logger, origDoc, origNode, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, true, parentInstanceID);
     } else if (depth < targetDepth) {
         // shallow-split
         let thisInstanceID: number;
         if (origNode.getMesh()) {
             logger.debug(`Found shallow parent node named "${origNode.getName()}" above target depth (${depth + depthOffset})`);
-            thisInstanceID = await extractNode(logger, origDoc, origSceneIdx, origNode, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, false, parentInstanceID)
+            thisInstanceID = await extractNode(logger, origDoc, origNode, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, false, parentInstanceID)
         } else {
             thisInstanceID = makeInstanceFromNode(instanceCallback, null, parentInstanceID, origNode, null);
         }
@@ -253,7 +294,7 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origSceneIdx: 
         // split children
         const nextDepth = depth + 1;
         for (const child of origNode.listChildren()) {
-            await extractAtDepth(logger, origDoc, origSceneIdx, child, nextDepth, targetDepth, depthOffset, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, thisInstanceID);
+            await extractAtDepth(logger, origDoc, child, nextDepth, targetDepth, depthOffset, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, thisInstanceID);
         }
     }
 }
@@ -380,12 +421,10 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
         // split document into multiple sub-documents with a child per document
         const root = origDoc.getRoot();
         const scenes = root.listScenes();
-        const sceneCount = scenes.length;
         const splitNodeIdxs: SplitNodeIdxList = [];
-        for (let s = 0; s < sceneCount; s++) {
-            const scene = scenes[s];
+        for (const scene of scenes) {
             for (const child of scene.listChildren()) {
-                await extractAtDepth(logger, origDoc, s, child, 1, splitDepth, depthOffset, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, null);
+                await extractAtDepth(logger, origDoc, child, 1, splitDepth, depthOffset, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, null);
             }
         }
     }
