@@ -42,13 +42,22 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
         }
 
         let hash = bufferHash(img);
+        const mimeType = texture.getMimeType();
 
-        if (texture.getMimeType() === 'image/ktx2') {
+        if (mimeType === 'image/ktx2') {
             logger.debug('Found final basisu image');
             hash += '.ktx2';
             textureResizer.storeExtKTX2(outFolder, img, hash, logger);
             textureHashes.set(texture, hash);
         } else {
+            if (mimeType === 'image/png') {
+                hash += '.png';
+            } else if (mimeType === 'image/jpeg') {
+                hash += '.jpg';
+            } else {
+                logger.warn('Image has an unknown mime-type, so it might be saved with no file extension. This can create issues in webservers');
+            }
+
             const [resBuf, resHash] = await textureResizer.resizeTexture(outFolder, texResizeOpt, img, hash, embedTextures, logger);
 
             if (resBuf !== null) {
