@@ -3,7 +3,7 @@ import { createTransform } from '@gltf-transform/functions';
 import { EXTENSION_NAME } from './extension-name';
 import { assertFreeFile } from './assertFreeFile';
 import { statSync, writeFileSync } from 'node:fs';
-import { bufferHash } from './bufferHash';
+import { imageBufferHash } from './imageBufferHash';
 import { resolve as resolvePath } from 'node:path';
 import { PlaykoExternalWLEMaterial } from './PlaykoExternalWLEMaterial';
 import { PlaykoExternalWLEMaterialReference } from './PlaykoExternalWLEMaterialReference';
@@ -41,21 +41,14 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
             continue;
         }
 
-        let hash = bufferHash(img);
-        const mimeType = texture.getMimeType();
-
-        if (mimeType === 'image/ktx2') {
+        const hash = imageBufferHash(img);
+        if (hash.endsWith('.ktx2')) {
             logger.debug('Found final basisu image');
-            hash += '.ktx2';
             textureResizer.storeExtKTX2(outFolder, img, hash, logger);
             textureHashes.set(texture, hash);
         } else {
-            if (mimeType === 'image/png') {
-                hash += '.png';
-            } else if (mimeType === 'image/jpeg') {
-                hash += '.jpg';
-            } else {
-                logger.warn('Image has an unknown mime-type, so it might be saved with no file extension. This can create issues in webservers');
+            if (!embedTextures && hash.indexOf('.') < 0) {
+                logger.warn('Image has an unknown mime-type, so it will be saved with no file extension. This can create issues in some webservers');
             }
 
             const [resBuf, resHash] = await textureResizer.resizeTexture(outFolder, texResizeOpt, img, hash, embedTextures, logger);

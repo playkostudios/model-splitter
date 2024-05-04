@@ -1,5 +1,5 @@
 import { resolve as resolvePath } from 'node:path';
-import { bufferHash } from './bufferHash';
+import { imageBufferHash } from './imageBufferHash';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import gm from 'gm';
 
@@ -208,7 +208,7 @@ export class TextureResizer {
         }
 
         const outBuf = await gmToBuffer(inImg.resize(w, h, '!'));
-        const outHash = bufferHash(outBuf);
+        const outHash = imageBufferHash(outBuf);
         const outPath = this.getDestFolder(outFolder, outHash, embedded);
         this.writeFile(outBuf, outPath, logger);
 
