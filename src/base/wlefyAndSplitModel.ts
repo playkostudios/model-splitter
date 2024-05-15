@@ -120,9 +120,19 @@ function isSubsceneEqual(aNode: Node, bNode: Node, ignoreRootName: boolean, igno
         return false;
     }
 
-    // compare children
+    // compare children. need to compare in a way in which order doesn't matter
+    const bAvailableChildren = bNodeChildren.slice();
     for (let i = 0; i < aNodeChildCount; i++) {
-        if (!aNodeChildren[i].equals(bNodeChildren[i])) {
+        let hadMatch = false;
+        for (let j = bAvailableChildren.length - 1; j >= 0; j--) {
+            if (aNodeChildren[i].equals(bAvailableChildren[j])) {
+                bAvailableChildren.splice(j, 1);
+                hadMatch = true;
+                break;
+            }
+        }
+
+        if (!hadMatch) {
             return false;
         }
     }
