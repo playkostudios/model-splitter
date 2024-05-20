@@ -233,10 +233,10 @@ async function _splitModel(tempFolderPath: string, inputModelPath: string, outpu
         // process parts
         let hadParts = false;
         const sourceMetadata = new Array<Metadata>(); // only populated if generating instance groups
-        await wlefyAndSplitModel(logger, io, inputModelPath, tempFolderPath, splitDepth, discardDepthSplitParentNodes, resetPosition, resetRotation, resetScale, async (splitName: string | null, glbPath: string, metadata: Metadata) => {
+        await wlefyAndSplitModel(logger, io, inputModelPath, tempFolderPath, splitDepth, discardDepthSplitParentNodes, resetPosition, resetRotation, resetScale, async (splitNameSuffix: string | null, glbPath: string, metadata: Metadata) => {
             hadParts = true;
-            const splitSuffix = splitName === null ? 'for model root' : `for model part "${splitName}"`;
-            const finalPartName = splitName === null ? modelName : `${modelName}-${splitName}`;
+            const splitSuffix = splitNameSuffix === null ? 'for model root' : `for model part "${splitNameSuffix}"`;
+            const finalPartName = splitNameSuffix === null ? modelName : `${modelName}-${splitNameSuffix}`;
             const metaOutFileName = `${finalPartName}.metadata.json`;
             const metaOutPath = resolvePath(outputFolder, metaOutFileName);
 

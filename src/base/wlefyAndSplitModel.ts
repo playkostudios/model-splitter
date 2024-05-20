@@ -10,7 +10,7 @@ import { type Metadata } from './output-types';
 
 import type { PatchedNodeIO } from './PatchedNodeIO';
 
-type DocTransformerCallback = (splitName: string | null, doc: Document) => Promise<number>;
+type DocTransformerCallback = (isDepthSplit: boolean, doc: Document) => Promise<number>;
 type ProcessorCallback = (splitName: string | null, glbPath: string, metadata: Metadata) => Promise<number>;
 type InstanceCallback = (nullableSource: number | null, nullableParent: number | null, instanceName: string, position: vec3, rotation: quat, scale: vec3) => number;
 type SplitNodeIdxList = Array<[nodeIdx: number, sourceID: number, deep: boolean]>;
@@ -151,7 +151,7 @@ function makeInstanceFromNode(instanceCallback: InstanceCallback, sourceID: numb
     return id;
 }
 
-async function extractNode(logger: ILogger, origDoc: Document, origNode: Node, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, takenNames: Set<string>, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, deep: boolean, parentInstanceID: number | null) {
+async function extractNode(logger: ILogger, origDoc: Document, origNode: Node, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, deep: boolean, parentInstanceID: number | null) {
     logger.debug('Checking if node is not a duplicate...');
 
     // check if child is a duplicate of another child
@@ -263,40 +263,24 @@ async function extractNode(logger: ILogger, origDoc: Document, origNode: Node, d
         unpartition(),
     );
 
-    // add input
-    const origSplitName = origNode.getName();
-    let splitName = origSplitName;
-    if (takenNames.has(splitName)) {
-        for (let i = 2;; i++) {
-            splitName = `${origSplitName}-${i}`;
-            if (!takenNames.has(splitName)) {
-                break;
-            }
-        }
-    }
-
-    if (splitName !== origSplitName) {
-        logger.warn(`Name clash for split node "${origSplitName}"; renamed to "${splitName}"`);
-    }
-
     logger.debug(`Done splitting`);
 
-    const sourceID = await docTransformerCallback(splitName, doc);
+    const sourceID = await docTransformerCallback(true, doc);
     splitNodeIdxs.push([origNodeIdx, sourceID, deep]);
     return makeInstanceFromNode(instanceCallback, sourceID, parentInstanceID, origNode, transformCorrect);
 }
 
-async function extractAtDepth(logger: ILogger, origDoc: Document, origNode: Node, depth: number, targetDepth: number, depthOffset: number, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, takenNames: Set<string>, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, parentInstanceID: number | null) {
+async function extractAtDepth(logger: ILogger, origDoc: Document, origNode: Node, depth: number, targetDepth: number, depthOffset: number, docTransformerCallback: DocTransformerCallback, instanceCallback: InstanceCallback, splitNodeIdxs: SplitNodeIdxList, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, parentInstanceID: number | null) {
     if (depth === targetDepth) {
         // we are at the target depth, split here
         logger.debug(`Found wanted deep node named "${origNode.getName()}" at target depth (${depth + depthOffset})`);
-        await extractNode(logger, origDoc, origNode, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, true, parentInstanceID);
+        await extractNode(logger, origDoc, origNode, docTransformerCallback, instanceCallback, splitNodeIdxs, resetPosition, resetRotation, resetScale, true, parentInstanceID);
     } else if (depth < targetDepth) {
         // shallow-split
         let thisInstanceID: number;
         if (origNode.getMesh()) {
             logger.debug(`Found shallow parent node named "${origNode.getName()}" above target depth (${depth + depthOffset})`);
-            thisInstanceID = await extractNode(logger, origDoc, origNode, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, false, parentInstanceID)
+            thisInstanceID = await extractNode(logger, origDoc, origNode, docTransformerCallback, instanceCallback, splitNodeIdxs, resetPosition, resetRotation, resetScale, false, parentInstanceID)
         } else {
             thisInstanceID = makeInstanceFromNode(instanceCallback, null, parentInstanceID, origNode, null);
         }
@@ -304,7 +288,7 @@ async function extractAtDepth(logger: ILogger, origDoc: Document, origNode: Node
         // split children
         const nextDepth = depth + 1;
         for (const child of origNode.listChildren()) {
-            await extractAtDepth(logger, origDoc, child, nextDepth, targetDepth, depthOffset, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, thisInstanceID);
+            await extractAtDepth(logger, origDoc, child, nextDepth, targetDepth, depthOffset, docTransformerCallback, instanceCallback, splitNodeIdxs, resetPosition, resetRotation, resetScale, thisInstanceID);
         }
     }
 }
@@ -327,9 +311,8 @@ function enumerateAtDepth(node: Node, depth: number, targetDepth: number, target
 export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inputModelPath: string, tempFolderPath: string, splitDepth: number, discardDepthSplitParentNodes: boolean, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, processorCallback: ProcessorCallback, instanceCallback: InstanceCallback): Promise<void> {
     // read model
     const origDoc = await io.read(inputModelPath);
-    const takenNames = new Set<string>();
     let i = 0;
-    const docTransformerCallback: DocTransformerCallback = async (splitName: string | null, doc: Document) => {
+    const docTransformerCallback: DocTransformerCallback = async (isDepthSplit: boolean, doc: Document) => {
         logger.debug('Converting to format usable by Wonderland Engine...');
 
         // get rid of extensions not supported by wonderland engine and do some
@@ -350,9 +333,10 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
         };
 
         // done
-        const outPath = resolvePath(tempFolderPath, `intermediary-model-${i++}.glb`);
+        const partID = i++;
+        const outPath = resolvePath(tempFolderPath, `intermediary-model-${partID}.glb`);
         writeFileSync(outPath, await io.writeBinary(doc));
-        return await processorCallback(splitName, outPath, metadata);
+        return await processorCallback(isDepthSplit ? `p${partID}` : null, outPath, metadata);
     }
 
     if (splitDepth === 0) {
@@ -379,7 +363,7 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
             }
         }
 
-        const sourceID = await docTransformerCallback(null, origDoc);
+        const sourceID = await docTransformerCallback(false, origDoc);
         instanceCallback(sourceID, null, origRoot.getDefaultScene()?.getName() ?? 'root', [0,0,0], [0,0,0,1], [1,1,1]);
     } else {
         // discard parent nodes if wanted, but keep child nodes with the same
@@ -434,7 +418,7 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
         const splitNodeIdxs: SplitNodeIdxList = [];
         for (const scene of scenes) {
             for (const child of scene.listChildren()) {
-                await extractAtDepth(logger, origDoc, child, 1, splitDepth, depthOffset, docTransformerCallback, instanceCallback, takenNames, splitNodeIdxs, resetPosition, resetRotation, resetScale, null);
+                await extractAtDepth(logger, origDoc, child, 1, splitDepth, depthOffset, docTransformerCallback, instanceCallback, splitNodeIdxs, resetPosition, resetRotation, resetScale, null);
             }
         }
     }
