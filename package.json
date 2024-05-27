@@ -16,7 +16,6 @@
   "types": "./lib/index.cjs.d.ts",
   "type": "commonjs",
   "bin": "./lib/cli.js",
-  "packageManager": "pnpm@8.6.11",
   "scripts": {
     "prepare": "pnpm run copy-third-party-blobs",
     "lint": "eslint ./src",
@@ -44,7 +43,7 @@
     "build-all": "pnpm run build-runtime-lib && pnpm run build-lib && pnpm run build-cli && pnpm run build-gui && pnpm run gen-types",
     "pkg-all": "pnpm run pkg-cli && pnpm run pkg-gui",
     "build-pkg-all": "pnpm run clean-build && pnpm run copy-third-party-blobs && pnpm run build-all && pnpm run pkg-all",
-    "dev-gui": "pnpm run copy-nwjs-third-party-blobs && concurrently 'esbuild --watch --minify --bundle --sourcemap --target=es6 --platform=node --format=cjs --outfile=nwjs-out/worker-bundle.js src/worker/gui-worker.ts' 'esbuild --watch --minify --bundle --sourcemap --target=es6 --platform=node --format=iife --outfile=nwjs-out/renderer-bundle.js src/browser/gui-renderer.ts' 'cd nwjs-out; nw-sdk .'"
+    "dev-gui": "pnpm run copy-nwjs-third-party-blobs && concurrently 'esbuild --watch --minify --bundle --sourcemap --target=es6 --platform=node --format=cjs --outfile=nwjs-out/worker-bundle.js src/worker/gui-worker.ts' 'esbuild --watch --minify --bundle --sourcemap --target=es6 --platform=node --format=iife --outfile=nwjs-out/renderer-bundle.js src/browser/gui-renderer.ts' 'cd nwjs-out; nw .'"
   },
   "files": [
     "lib",
@@ -66,9 +65,9 @@
   "homepage": "https://github.com/playkostudios/model-splitter#readme",
   "devDependencies": {
     "@ffflorian/jszip-cli": "^3.1.9",
-    "@gltf-transform/core": "^3.1.4",
-    "@gltf-transform/extensions": "^3.1.4",
-    "@gltf-transform/functions": "^3.1.4",
+    "@gltf-transform/core": "3.1.4",
+    "@gltf-transform/extensions": "3.1.4",
+    "@gltf-transform/functions": "3.1.4",
     "@types/draco3dgltf": "^1.4.0",
     "@types/gm": "^1.25.1",
     "@types/node": "^18.15.10",
@@ -87,7 +86,8 @@
     "gm": "^1.25.0",
     "mikktspace": "^1.1.1",
     "node-notifier": "^10.0.1",
-    "nw-builder": "4.1.0-beta.3",
+    "nw": "0.85.0-sdk",
+    "nw-builder": "4.7.4",
     "pkg": "^5.8.1",
     "shx": "^0.3.4",
     "tar": "^6.1.13",
