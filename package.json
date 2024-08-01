@@ -43,6 +43,7 @@
     "build-all": "pnpm run build-runtime-lib && pnpm run build-lib && pnpm run build-cli && pnpm run build-gui && pnpm run gen-types",
     "pkg-all": "pnpm run pkg-cli && pnpm run pkg-gui",
     "build-pkg-all": "pnpm run clean-build && pnpm run copy-third-party-blobs && pnpm run build-all && pnpm run pkg-all",
+    "build-pkg-github-rel": "pnpm run clean-build && pnpm run copy-third-party-blobs && pnpm run build-all && pnpm run pkg-gui-win && pnpm pack",
     "dev-gui": "pnpm run copy-nwjs-third-party-blobs && concurrently 'esbuild --watch --minify --bundle --sourcemap --target=es6 --platform=node --format=cjs --outfile=nwjs-out/worker-bundle.js src/worker/gui-worker.ts' 'esbuild --watch --minify --bundle --sourcemap --target=es6 --platform=node --format=iife --outfile=nwjs-out/renderer-bundle.js src/browser/gui-renderer.ts' 'cd nwjs-out; nw .'"
   },
   "files": [
