@@ -220,6 +220,7 @@ export class LODModelLoader {
     }
 
     private async loadMaterials(convertedMaterials: Array<ConvertedMaterial>, avoidPBR: boolean, phongOpaque?: Material, phongTransparent?: Material, pbrOpaque?: Material, pbrTransparent?: Material): Promise<Array<Material | null>> {
+        // TODO upgrade this to handle untextured materials. check RP1 code
         const materials = new Array<Material | null>();
 
         for (const rawMat of convertedMaterials) {

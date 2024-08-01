@@ -1,4 +1,4 @@
-import { PropertyType, VERSION as GLTF_TRANSFORM_VERSION } from '@gltf-transform/core';
+import { VERSION as GLTF_TRANSFORM_VERSION } from '@gltf-transform/core';
 import { createTransform } from '@gltf-transform/functions';
 import { EXTENSION_NAME } from './extension-name';
 import { assertFreeFile } from './assertFreeFile';
@@ -135,18 +135,14 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
                 convertedMaterial.emissiveFactor = material.getEmissiveFactor();
             }
 
-            if (convertedMaterial.albedoTexture) {
-                const albedoFactor = material.getBaseColorFactor();
-                if (albedoFactor[0] !== 1 || albedoFactor[1] !== 1 || albedoFactor[2] !== 1 || albedoFactor[3] !== 1) {
-                    convertedMaterial.albedoFactor = albedoFactor;
-                    convertedMaterial.pbr = true;
-                }
+            const albedoFactor = material.getBaseColorFactor();
+            if (albedoFactor[0] !== 1 || albedoFactor[1] !== 1 || albedoFactor[2] !== 1 || albedoFactor[3] !== 1) {
+                convertedMaterial.albedoFactor = albedoFactor;
+                convertedMaterial.pbr = true;
             }
 
-            if (convertedMaterial.roughnessMetallicTexture) {
-                convertedMaterial.roughnessFactor = material.getRoughnessFactor();
-                convertedMaterial.metallicFactor = material.getMetallicFactor();
-            }
+            convertedMaterial.roughnessFactor = material.getRoughnessFactor();
+            convertedMaterial.metallicFactor = material.getMetallicFactor();
 
             // store converted material and remove original material
             const cmID = convertedMaterials.addConvertedMaterial(convertedMaterial);
