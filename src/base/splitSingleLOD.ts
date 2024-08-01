@@ -64,30 +64,15 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
     }
 
     // handle external textures (convert materials)
-    if (!embedTextures && textureHashes.size > 0) {
+    if (!embedTextures) {
         logger.debug('GLTF uses external textures');
 
-        // get dependent materials
-        const materials = new Set<Material>();
-        for (const [texture, hash] of textureHashes) {
-            for (const parent of texture.listParents()) {
-                if (parent.propertyType === PropertyType.ROOT) {
-                    continue;
-                }
-
-                if (parent.propertyType !== PropertyType.MATERIAL) {
-                    throw new Error(`Unexpected graph node with type "${parent.propertyType}" depends on texture "${hash}"`);
-                }
-
-                materials.add(parent as Material);
-            }
-        }
-
-        // convert materials to playko format
+        // convert materials to playko format (even if not textured, so that
+        // more advanced materials like PBR/semi-transparent are supported)
         const convertedMaterials = gltf.createExtension(PlaykoExternalWLEMaterial);
         const convertedMaterialsMap = new Map<Material, number>();
 
-        for (const material of materials) {
+        for (const material of root.listMaterials()) {
             // check if material depends on an external texture and
             // store hash as reference in converted material
             let hasEmbeddedTexture = false;
@@ -126,16 +111,11 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
                 }
             }
 
-            if (!hasExternalTexture) {
-                logger.debug('Material does not depend on external texture. Ignored');
-                continue;
-            }
-
             if (hasEmbeddedTexture && hasExternalTexture) {
                 throw new Error('Material unexpectedly has both embedded and external textures');
             }
 
-            // get extra converted material data
+            // check transparency
             const alphaMode = material.getAlphaMode();
             if (alphaMode !== 'OPAQUE') {
                 convertedMaterial.opaque = false;
@@ -145,6 +125,12 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
                 }
             }
 
+            if (!hasExternalTexture && convertedMaterial.opaque && !convertedMaterial.pbr) {
+                logger.debug('Material does not depend on external texture, is not a PBR material, and is not semi-transparent. Ignored');
+                continue;
+            }
+
+            // get extra converted material data
             if (convertedMaterial.emissiveTexture) {
                 convertedMaterial.emissiveFactor = material.getEmissiveFactor();
             }
@@ -165,7 +151,7 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
             // store converted material and remove original material
             const cmID = convertedMaterials.addConvertedMaterial(convertedMaterial);
             convertedMaterialsMap.set(material, cmID);
-            logger.debug(`Material marked for removal; depends on external texture. Added to converted materials list (converted material id ${cmID})`);
+            logger.debug(`Material marked for removal. Added to converted materials list (converted material id ${cmID})`);
         }
 
         // replace materials in meshes with converted format and dummy material
