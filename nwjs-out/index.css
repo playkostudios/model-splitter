@@ -123,16 +123,20 @@ span.msg-timestamp::after {
     margin-right: 8px;
 }
 
-p.msg-debug {
+pre.msg-debug {
     color: darkgray;
 }
 
-p.msg-warn {
+pre.msg-warn {
     color: orange;
 }
 
-p.msg-error {
+pre.msg-error {
     color: red;
+}
+
+pre.msg-debug, pre.msg-info, pre.msg-warn, pre.msg-error {
+    margin: 0;
 }
 
 #lod-list {

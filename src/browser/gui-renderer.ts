@@ -211,7 +211,7 @@ function log(textOutput: HTMLDivElement, scrollPin: HTMLDivElement, logLevel: Ve
     msgTimestamp.className = 'msg-timestamp';
     msgTimestamp.textContent = timestampStr;
 
-    const msgContainer = document.createElement('p');
+    const msgContainer = document.createElement('pre');
     const msgTypeClass = `msg-${mType}`;
     msgContainer.className = msgTypeClass;
     msgContainer.appendChild(msgTimestamp);

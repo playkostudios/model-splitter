@@ -309,8 +309,30 @@ function enumerateAtDepth(node: Node, depth: number, targetDepth: number, target
 }
 
 export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inputModelPath: string, tempFolderPath: string, splitDepth: number, discardDepthSplitParentNodes: boolean, resetPosition: boolean, resetRotation: boolean, resetScale: boolean, processorCallback: ProcessorCallback, instanceCallback: InstanceCallback): Promise<void> {
-    // read model
+    // read and validate model
     const origDoc = await io.read(inputModelPath);
+
+    {
+        const accessors = origDoc.getRoot().listAccessors();
+        const accessorCount = accessors.length;
+
+        for (let a = 0; a < accessorCount; a++) {
+            const arr = accessors[a].getArray();
+            if (!arr) {
+                continue;
+            }
+
+            const iMax = arr.length;
+            for (let i = 0; i < iMax; i++) {
+                const val = arr[i];
+                if (isNaN(val) || !isFinite(val)) {
+                    throw new Error(`Bad input model; invalid accessor element value (${val}) found at index ${i} for accessor ${a}`);
+                }
+            }
+        }
+    }
+
+    // process model
     let i = 0;
     const docTransformerCallback: DocTransformerCallback = async (isDepthSplit: boolean, doc: Document) => {
         logger.debug('Converting to format usable by Wonderland Engine...');

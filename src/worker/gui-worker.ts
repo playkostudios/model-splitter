@@ -20,6 +20,8 @@ globalThis.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
             await splitModel(message.inputModelPath, message.outputFolder, message.lods, { ...message.options, logger });
         } catch (err: unknown) {
+            console.error(err);
+
             let error: string;
             let errorType = 'other';
 
@@ -30,7 +32,9 @@ globalThis.onmessage = async (event: MessageEvent<WorkerMessage>) => {
                     errorType = 'collision';
                 }
 
-                if ((err as { message?: unknown }).message) {
+                if ((err as { stack?: string }).stack) {
+                    error = `${(err as { stack: string }).stack}`;
+                } else if ((err as { message?: unknown }).message) {
                     error = `${(err as { message: unknown }).message}`;
                 } else {
                     error = `${err}`;
