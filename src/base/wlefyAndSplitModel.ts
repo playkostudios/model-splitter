@@ -354,6 +354,13 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
             bounds: getBoundingBox(doc),
         };
 
+        // HACK make sure scene is named to prevent crashes in WLE 1.1.6
+        const scenes = doc.getRoot().listScenes();
+        for (let i = 0; i < scenes.length; i++) {
+            const scene = scenes[i];
+            if (scene.getName() === '') scene.setName(`scene_${i}`);
+        }
+
         // done
         const partID = i++;
         const outPath = resolvePath(tempFolderPath, `intermediary-model-${partID}.glb`);
