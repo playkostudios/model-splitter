@@ -200,6 +200,24 @@ export async function splitSingleLODTransform(textureResizer: TextureResizer, te
         }
     }
 
+    // HACK make sure scene is named to prevent crashes in WLE 1.1.6
+    const scenes = root.listScenes();
+    for (let s = 0; s < scenes.length; s++) {
+        const scene = scenes[s];
+        if (scene.getName() === '') {
+            scene.setName(`scene_${s}`);
+        }
+    }
+
+    // HACK make sure nodes are named to prevent crashes in WLE 1.1.6
+    const nodes = root.listNodes();
+    for (let n = 0; n < nodes.length; n++) {
+        const node = nodes[n];
+        if (node.getName() === '') {
+            node.setName(`node_${n}`);
+        }
+    }
+
     // override generator
     const asset = root.getAsset();
     asset.generator = `model-splitter ${MODEL_SPLITTER_VERSION} (gltfpack, glTF-Transform ${GLTF_TRANSFORM_VERSION})`;

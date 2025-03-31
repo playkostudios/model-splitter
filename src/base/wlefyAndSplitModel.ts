@@ -355,10 +355,13 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
         };
 
         // HACK make sure scene is named to prevent crashes in WLE 1.1.6
-        const scenes = doc.getRoot().listScenes();
-        for (let i = 0; i < scenes.length; i++) {
-            const scene = scenes[i];
-            if (scene.getName() === '') scene.setName(`scene_${i}`);
+        const root = doc.getRoot();
+        const scenes = root.listScenes();
+        for (let s = 0; s < scenes.length; s++) {
+            const scene = scenes[s];
+            if (scene.getName() === '') {
+                scene.setName(`scene_${s}`);
+            }
         }
 
         // done
