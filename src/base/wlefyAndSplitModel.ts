@@ -6,7 +6,6 @@ import { generateTangents } from 'mikktspace';
 import { resolve as resolvePath } from 'node:path';
 import { disposeSubGraph } from './disposeSubGraph';
 import { getBoundingBox } from './getBoundingBox';
-import { normalizeWindingOrderTransform, NWO_TRANS_NAME } from './normalizeWindingOrderTransform';
 import { type Metadata } from './output-types';
 
 import type { PatchedNodeIO } from './PatchedNodeIO';
@@ -341,7 +340,6 @@ export async function wlefyAndSplitModel(logger: ILogger, io: PatchedNodeIO, inp
         // get rid of extensions not supported by wonderland engine and do some
         // extra optimizations
         await doc.transform(
-            createTransform(NWO_TRANS_NAME, normalizeWindingOrderTransform),
             resample(),
             dequantize(),
             metalRough(),

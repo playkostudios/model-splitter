@@ -9,6 +9,7 @@ import { PlaykoExternalWLEMaterial } from './PlaykoExternalWLEMaterial';
 import { PlaykoExternalWLEMaterialReference } from './PlaykoExternalWLEMaterialReference';
 import { version as MODEL_SPLITTER_VERSION } from '../../package.json';
 import { PrefixedLogger } from './PrefixedLogger';
+import { normalizeWindingOrderTransform, NWO_TRANS_NAME } from './normalizeWindingOrderTransform';
 
 import type { ConvertedMaterial, ConvertedMaterialTextureName, LOD, Metadata } from './output-types';
 import type { GltfpackArgCombo, ParsedLODConfig } from './internal-types';
@@ -17,14 +18,14 @@ import type { PatchedNodeIO } from './PatchedNodeIO';
 import type { PackedResizeOption } from './external-types';
 import type { TextureResizer } from './TextureResizer';
 
-const TRANS_NAME = 'split-single-lod';
+const SSL_TRANS_NAME = 'split-single-lod';
 
 function getDummyMaterial(dummyMaterial: Material | null, gltf: Document): Material {
     return dummyMaterial ? dummyMaterial : gltf.createMaterial();
 }
 
 export async function splitSingleLODTransform(textureResizer: TextureResizer, texResizeOpt: PackedResizeOption, embedTextures: boolean, outFolder: string, gltf: Document) {
-    const logger = new PrefixedLogger(`${TRANS_NAME}: `, gltf.getLogger());
+    const logger = new PrefixedLogger(`${SSL_TRANS_NAME}: `, gltf.getLogger());
     const root = gltf.getRoot();
     const graph = gltf.getGraph();
 
@@ -233,10 +234,10 @@ export async function splitSingleLOD(logger: ILogger, io: PatchedNodeIO, outName
 
     // transform glb
     logger.debug('Transforming GLB buffer');
-    await gltfMain.transform(createTransform(
-        TRANS_NAME,
-        splitSingleLODTransform.bind(null, textureResizer, texResizeOpt, embedTextures, outFolder)
-    ));
+    await gltfMain.transform(
+        createTransform(SSL_TRANS_NAME, splitSingleLODTransform.bind(null, textureResizer, texResizeOpt, embedTextures, outFolder)),
+        createTransform(NWO_TRANS_NAME, normalizeWindingOrderTransform),
+    );
 
     // save as glb
     logger.debug(`Writing LOD to ${outPath}...`);

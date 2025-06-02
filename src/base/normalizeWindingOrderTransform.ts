@@ -1,29 +1,46 @@
-import { type Document, type Mesh, Node, Primitive } from '@gltf-transform/core';
+import { type Document, type Mesh, Node, Primitive, type TypedArray } from '@gltf-transform/core';
 import { PrefixedLogger } from './PrefixedLogger';
 import { mat4 } from 'gl-matrix';
 import { type WeldOptions, weldPrimitive } from '@gltf-transform/functions';
 
 export const NWO_TRANS_NAME = 'normalize-winding-order';
 
-function invertMeshWindingOrder(doc: Document, mesh: Mesh) {
+function invertMeshWindingOrder(doc: Document, mesh: Mesh, clone: boolean) {
     let didWork = false;
     for (const prim of mesh.listPrimitives()) {
         if (prim.getMode() !== Primitive.Mode.TRIANGLES) {
             continue;
         }
 
-        let indicesAccessor = prim.getIndices();
-        if (!indicesAccessor) {
-            weldPrimitive(doc, prim, <Required<WeldOptions>>{ tolerance: 0 });
-            indicesAccessor = prim.getIndices()!;
+        let actualPrim: Primitive;
+        if (clone) {
+            actualPrim = prim.clone();
+        } else {
+            actualPrim = prim;
         }
 
-        const indices = indicesAccessor.getArray()!;
-        const indexCount = indices.length;
+        let indicesAccessor = actualPrim.getIndices();
+        let indicesInput: TypedArray, indicesOutput: TypedArray;
+        if (!indicesAccessor) {
+            weldPrimitive(doc, actualPrim, <Required<WeldOptions>>{ tolerance: 0 });
+            indicesAccessor = actualPrim.getIndices()!;
+            indicesOutput = indicesInput = indicesAccessor.getArray()!;
+        } else if (clone) {
+            indicesInput = indicesAccessor.getArray()!;
+            indicesOutput = indicesInput.slice();
+            indicesAccessor = doc.createAccessor()
+                .setArray(indicesOutput)
+                .setType('SCALAR')
+                .setBuffer(doc.createBuffer());
+        } else {
+            indicesOutput = indicesInput = indicesAccessor.getArray()!;
+        }
+
+        const indexCount = indicesInput.length;
         for (let i = 0; i < indexCount; i += 3) {
-            const temp = indices[i];
-            indices[i] = indices[i + 1];
-            indices[i + 1] = temp;
+            const temp = indicesInput[i];
+            indicesOutput[i] = indicesInput[i + 1];
+            indicesOutput[i + 1] = temp;
         }
 
         didWork = true;
@@ -53,14 +70,19 @@ export function normalizeWindingOrderTransform(doc: Document) {
             continue;
         }
 
-        if (invertCount === 1) {
-            if (invertMeshWindingOrder(doc, mesh)) {
-                logger.warn(`Mesh ${m} is used in a single mirrored object. Inverted mesh winding order`);
+        if (invertCount === nodes.length) {
+            if (invertMeshWindingOrder(doc, mesh, false)) {
+                logger.warn(`Mesh ${m} is only used in mirrored objects. Inverted mesh winding order`);
             }
         } else {
-            // TODO make copy of mesh, invert it, and replace mesh in nodes with
-            //      copy
+            const invertedMesh = mesh.clone();
+            if (invertMeshWindingOrder(doc, invertedMesh, true)) {
+                logger.warn(`Mesh ${m} is used in some mirrored objects. Cloned and inverted mesh winding order`);
+            }
+
+            for (const node of invertNodes) {
+                node.setMesh(invertedMesh);
+            }
         }
-        console.debug(nodes, invertNodes);
     }
 }
